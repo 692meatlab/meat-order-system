@@ -5232,7 +5232,10 @@
         function applyBundlePackaging(data) {
             const BUNDLE_PACKAGING_TYPES = ['단품', '이동갈비포장'];
 
-            return data.map(item => {
+            // 디버깅용
+            let debugInfo = [];
+
+            const result = data.map(item => {
                 // SKU에서 포장방법 가져오기
                 let sku = null;
                 if (item._skuProductId) {
@@ -5242,10 +5245,19 @@
                     sku = skuProducts.find(p => p.skuName === item.skuName);
                 }
 
-                const packagingMethod = sku ? sku.packaging : '';
+                const packagingMethod = sku ? sku.packaging : '(SKU없음)';
                 const quantity = parseInt(item.quantity) || 1;
 
-                // 합포장 대상: 포장방법이 단품/이동갈비 & 수량 2개 이상
+                debugInfo.push({
+                    skuName: item.skuName,
+                    skuProductId: item._skuProductId,
+                    skuFound: sku ? '찾음' : '못찾음',
+                    packaging: packagingMethod,
+                    quantity: quantity,
+                    합포장대상: BUNDLE_PACKAGING_TYPES.includes(packagingMethod) && quantity >= 2
+                });
+
+                // 합포장 대상: 포장방법이 단품/이동갈비포장 & 수량 2개 이상
                 if (BUNDLE_PACKAGING_TYPES.includes(packagingMethod) && quantity >= 2) {
                     return {
                         ...item,
@@ -5257,6 +5269,18 @@
 
                 return { ...item };
             });
+
+            // 디버깅 정보 출력
+            console.log('=== 합포장 처리 디버깅 ===');
+            console.table(debugInfo);
+            alert('합포장 디버깅 정보가 콘솔(F12)에 출력되었습니다.\n\n첫 번째 항목 정보:\n' +
+                  'SKU명: ' + debugInfo[0]?.skuName + '\n' +
+                  'SKU찾음: ' + debugInfo[0]?.skuFound + '\n' +
+                  '포장방법: ' + debugInfo[0]?.packaging + '\n' +
+                  '수량: ' + debugInfo[0]?.quantity + '\n' +
+                  '합포장대상: ' + debugInfo[0]?.합포장대상);
+
+            return result;
         }
 
         function handleRegisterInvoice() {
