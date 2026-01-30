@@ -7505,45 +7505,8 @@
                         return;
                     }
 
-                    // 집하 완료 건이 있는지 먼저 확인
-                    let hasPickedUpItems = false;
-                    let allowUnpickedMatching = false;
-
-                    if (pickupColIdx >= 0) {
-                        for (let i = headerRowIdx + 1; i < data.length; i++) {
-                            const row = data[i];
-                            // 송장번호가 있는 행만 확인
-                            let invoiceNo = '';
-                            if (reprintInvoiceColIdx >= 0) {
-                                invoiceNo = String(row[reprintInvoiceColIdx] || '').trim();
-                            }
-                            if (!invoiceNo && invoiceColIdx >= 0) {
-                                invoiceNo = String(row[invoiceColIdx] || '').trim();
-                            }
-                            if (!invoiceNo) continue;
-
-                            const pickup = String(row[pickupColIdx] || '').trim().toLowerCase();
-                            const isPickedUp = ['○', 'o', '여', 'y', '예', 'yes', 'true', '완료', '1'].some(v => pickup === v || pickup.includes(v));
-                            if (isPickedUp) {
-                                hasPickedUpItems = true;
-                                break;
-                            }
-                        }
-
-                        // 집하완료 건이 없으면 자동으로 미집하 건에서 매칭
-                        if (!hasPickedUpItems) {
-                            allowUnpickedMatching = true;
-                        }
-                    }
-
-                    // 데이터 매칭 (헤더 다음 행부터)
-                    let matchedCount = 0;
-                    let skippedCount = 0;  // 집하 안된 건
-                    let notMatchedCount = 0;
-
-                    for (let i = headerRowIdx + 1; i < data.length; i++) {
-                        const row = data[i];
-                        // 재출력운송장번호가 있으면 우선 사용, 없으면 일반 송장번호 사용
+                    // 매칭 함수 정의
+                    function tryMatchRow(row, orderManagementData) {
                         let invoiceNo = '';
                         if (reprintInvoiceColIdx >= 0) {
                             invoiceNo = String(row[reprintInvoiceColIdx] || '').trim();
@@ -7551,55 +7514,29 @@
                         if (!invoiceNo && invoiceColIdx >= 0) {
                             invoiceNo = String(row[invoiceColIdx] || '').trim();
                         }
-
-                        if (!invoiceNo) continue;  // 송장번호가 없으면 스킵
-
-                        // 집하여부 확인 (집하 완료된 것만 처리, 단 미집하 매칭 허용 시 스킵하지 않음)
-                        if (pickupColIdx >= 0 && !allowUnpickedMatching) {
-                            const pickup = String(row[pickupColIdx] || '').trim().toLowerCase();
-                            const isPickedUp = ['○', 'o', '여', 'y', '예', 'yes', 'true', '완료', '1'].some(v => pickup === v || pickup.includes(v));
-                            if (!isPickedUp) {
-                                skippedCount++;
-                                continue;
-                            }
-                        }
+                        if (!invoiceNo) return null;
 
                         const orderNo = orderNoColIdx >= 0 ? String(row[orderNoColIdx] || '').trim() : '';
                         const deliveryNo = deliveryNoColIdx >= 0 ? String(row[deliveryNoColIdx] || '').trim() : '';
                         const receiverName = receiverColIdx >= 0 ? String(row[receiverColIdx] || '').trim() : '';
                         const senderName = senderColIdx >= 0 ? String(row[senderColIdx] || '').trim() : '';
                         const senderPhone = senderPhoneColIdx >= 0 ? String(row[senderPhoneColIdx] || '').trim() : '';
-                        const senderAddr = senderAddrColIdx >= 0 ? String(row[senderAddrColIdx] || '').trim() : '';
 
-                        // 매칭 시도
-                        let matched = false;
                         for (const order of orderManagementData) {
-                            // 이미 송장번호가 있으면 스킵
                             if (order.invoiceNo) continue;
 
-                            // 1순위: 주문번호로 매칭 (배송번호가 있으면 추가 확인)
+                            // 1순위: 주문번호로 매칭
                             if (orderNo && order.orderNo && order.orderNo === orderNo) {
-                                // 배송번호가 둘 다 있으면 배송번호도 일치해야 함
                                 if (deliveryNo && order.deliveryNo) {
                                     if (order.deliveryNo === deliveryNo) {
-                                        order.invoiceNo = invoiceNo;
-                                        order._shipped = true;
-                                        matched = true;
-                                        matchedCount++;
-                                        break;
+                                        return { order, invoiceNo };
                                     }
-                                    // 배송번호가 다르면 다음 주문으로 계속 검색
                                 } else {
-                                    // 배송번호가 없거나 한쪽만 있으면 주문번호만으로 매칭
-                                    order.invoiceNo = invoiceNo;
-                                    order._shipped = true;
-                                    matched = true;
-                                    matchedCount++;
-                                    break;
+                                    return { order, invoiceNo };
                                 }
                             }
 
-                            // 2순위: 주문번호가 없는 경우, 수하인명 + 발송인명 + (발송인연락처) 매칭
+                            // 2순위: 수하인명 + 발송인명 매칭
                             if (!orderNo && receiverName && senderName) {
                                 const orderReceiverName = (order.receiverName || '').replace('님', '').trim();
                                 const orderSenderName = (order.senderName || '').trim();
@@ -7607,23 +7544,16 @@
                                 const excelSenderName = senderName.replace('님', '').trim();
 
                                 if (orderReceiverName === excelReceiverName && orderSenderName === excelSenderName) {
-                                    // 발송인연락처가 있으면 추가 검증
                                     if (senderPhone && order.senderPhone) {
                                         const orderPhone = (order.senderPhone || '').replace(/-/g, '').trim();
                                         const excelPhone = senderPhone.replace(/-/g, '').trim();
-                                        if (orderPhone !== excelPhone) {
-                                            continue; // 연락처 불일치시 다음 주문으로
-                                        }
+                                        if (orderPhone !== excelPhone) continue;
                                     }
-                                    order.invoiceNo = invoiceNo;
-                                    order._shipped = true;
-                                    matched = true;
-                                    matchedCount++;
-                                    break;
+                                    return { order, invoiceNo };
                                 }
                             }
 
-                            // 3순위: 발송인연락처 + 수하인명으로 매칭 (주문번호, 발송인명 없을 때)
+                            // 3순위: 발송인연락처 + 수하인명 매칭
                             if (!orderNo && !senderName && senderPhone && receiverName) {
                                 const orderReceiverName = (order.receiverName || '').replace('님', '').trim();
                                 const excelReceiverName = receiverName.replace('님', '').trim();
@@ -7631,18 +7561,78 @@
                                 const excelPhone = senderPhone.replace(/-/g, '').trim();
 
                                 if (orderReceiverName === excelReceiverName && orderPhone === excelPhone) {
-                                    order.invoiceNo = invoiceNo;
-                                    order._shipped = true;
-                                    matched = true;
-                                    matchedCount++;
-                                    break;
+                                    return { order, invoiceNo };
                                 }
                             }
                         }
+                        return null;
+                    }
 
-                        if (!matched) {
+                    // 집하여부 확인 함수
+                    function isRowPickedUp(row) {
+                        if (pickupColIdx < 0) return true;
+                        const pickup = String(row[pickupColIdx] || '').trim().toLowerCase();
+                        return ['○', 'o', '여', 'y', '예', 'yes', 'true', '완료', '1'].some(v => pickup === v || pickup.includes(v));
+                    }
+
+                    // 데이터 매칭 (2단계: 집하완료 우선, 그 다음 미집하)
+                    let matchedCount = 0;
+                    let notMatchedCount = 0;
+                    const processedRows = new Set();
+
+                    // 1단계: 집하완료 건에서 매칭
+                    for (let i = headerRowIdx + 1; i < data.length; i++) {
+                        const row = data[i];
+                        if (!isRowPickedUp(row)) continue;
+
+                        const result = tryMatchRow(row, orderManagementData);
+                        if (result) {
+                            result.order.invoiceNo = result.invoiceNo;
+                            result.order._shipped = true;
+                            matchedCount++;
+                            processedRows.add(i);
+                        }
+                    }
+
+                    // 2단계: 아직 매칭 안 된 주문에 대해 미집하 건에서도 매칭
+                    for (let i = headerRowIdx + 1; i < data.length; i++) {
+                        if (processedRows.has(i)) continue;
+                        const row = data[i];
+
+                        let invoiceNo = '';
+                        if (reprintInvoiceColIdx >= 0) {
+                            invoiceNo = String(row[reprintInvoiceColIdx] || '').trim();
+                        }
+                        if (!invoiceNo && invoiceColIdx >= 0) {
+                            invoiceNo = String(row[invoiceColIdx] || '').trim();
+                        }
+                        if (!invoiceNo) continue;
+
+                        const result = tryMatchRow(row, orderManagementData);
+                        if (result) {
+                            result.order.invoiceNo = result.invoiceNo;
+                            result.order._shipped = true;
+                            matchedCount++;
+                            processedRows.add(i);
+                        } else {
                             notMatchedCount++;
                         }
+                    }
+
+                    // 집하완료 건 중 미매칭 카운트
+                    for (let i = headerRowIdx + 1; i < data.length; i++) {
+                        if (processedRows.has(i)) continue;
+                        const row = data[i];
+                        if (!isRowPickedUp(row)) continue;
+
+                        let invoiceNo = '';
+                        if (reprintInvoiceColIdx >= 0) {
+                            invoiceNo = String(row[reprintInvoiceColIdx] || '').trim();
+                        }
+                        if (!invoiceNo && invoiceColIdx >= 0) {
+                            invoiceNo = String(row[invoiceColIdx] || '').trim();
+                        }
+                        if (invoiceNo) notMatchedCount++;
                     }
 
                     renderOrderManagement();
@@ -7688,9 +7678,6 @@
                     let message = `송장번호 업로드 완료: ${matchedCount}건 매칭`;
                     if (notMatchedCount > 0) {
                         message += `, ${notMatchedCount}건 미매칭`;
-                    }
-                    if (skippedCount > 0) {
-                        message += ` (집하 미완료 ${skippedCount}건 제외)`;
                     }
                     showStatus(orderManagementStatus, message, matchedCount > 0 ? 'success' : 'warning');
 
