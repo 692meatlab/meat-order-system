@@ -3274,6 +3274,7 @@
         }
 
         function updateVendorSelect() {
+            if (!vendorName) return;
             const vendors = Object.keys(vendorMappings).sort((a, b) => a.localeCompare(b, 'ko'));
             vendorName.innerHTML = '<option value="">발주처 선택 (필수)...</option>';
             vendors.forEach(v => {
@@ -5797,6 +5798,7 @@
         // ==================== 거래처별 상품관리 (vendorMappings) ====================
         function renderVendorList() {
             const container = document.getElementById('vendor-list');
+            if (!container) return;
             // 거래처명 기준 오름차순 정렬
             const vendors = Object.keys(vendorMappings).sort((a, b) => a.localeCompare(b, 'ko'));
 
@@ -7697,10 +7699,12 @@
 
         function saveVendorMappings() {
             // Firebase에 저장 (공통 설정)
-            database.ref('settings/vendorMappings').set(vendorMappings);
+            database.ref('settings/vendorMappings').set(vendorMappings)
+                .catch(err => console.error('발주처 저장 실패:', err));
             // 폴백: localStorage
             localStorage.setItem('vendorMappings', JSON.stringify(vendorMappings));
             updateVendorSelect();
+            renderVendorList();
         }
 
         function loadVendorMappings() {
