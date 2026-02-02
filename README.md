@@ -2,11 +2,17 @@
 
 발주서 변환 및 송장 등록 시스템
 
-## 배포 URL
+## 사용 방법
 
-- **Production**: https://meat-order-system-production.up.railway.app
+아래 URL로 접속하세요:
 
-## 로컬 실행 방법
+### https://meat-order-system-production.up.railway.app
+
+> 별도 설치 없이 브라우저에서 바로 사용 가능합니다.
+
+---
+
+## (개발자용) 로컬 실행 방법
 
 ### 1. 클론
 
