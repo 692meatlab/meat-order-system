@@ -6,9 +6,8 @@ import os
 from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, request, g, make_response
 from dotenv import load_dotenv
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from psycopg2 import pool
+import psycopg
+from psycopg.rows import dict_row
 import json
 
 load_dotenv()
@@ -18,56 +17,25 @@ app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
 
 
 # ============================================================
-# Database Connection Pool (성능 최적화)
+# Database Connection (psycopg3)
 # ============================================================
-db_pool = None
-
-def init_db_pool():
-    """연결 풀 초기화"""
-    global db_pool
-    database_url = os.getenv('DATABASE_URL')
-    if database_url and db_pool is None:
-        try:
-            db_pool = pool.ThreadedConnectionPool(
-                minconn=1,
-                maxconn=10,
-                dsn=database_url
-            )
-        except Exception as e:
-            print(f"DB Pool Error: {e}")
-            db_pool = None
-
-
 def get_db():
-    """DB 연결 가져오기 (풀에서)"""
+    """DB 연결 가져오기"""
     if 'db' not in g:
-        if db_pool:
-            conn = db_pool.getconn()
-            conn.cursor_factory = RealDictCursor
-            g.db = conn
-        else:
-            # 풀 실패 시 직접 연결
-            database_url = os.getenv('DATABASE_URL')
-            if database_url:
-                g.db = psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+        database_url = os.getenv('DATABASE_URL')
+        if database_url:
+            g.db = psycopg.connect(database_url, row_factory=dict_row)
     return g.get('db')
 
 
 def close_db(e=None):
-    """DB 연결 반환"""
+    """DB 연결 닫기"""
     db = g.pop('db', None)
     if db is not None:
-        if db_pool:
-            db_pool.putconn(db)
-        else:
-            db.close()
+        db.close()
 
 
 app.teardown_appcontext(close_db)
-
-# 앱 시작시 풀 초기화
-with app.app_context():
-    init_db_pool()
 
 
 # ============================================================
