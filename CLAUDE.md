@@ -25,10 +25,11 @@
 
 | 구분 | 기술 |
 |------|------|
-| Frontend | 순수 HTML/CSS/JavaScript (No Framework) |
-| Database | Firebase Realtime Database |
-| Excel | SheetJS (xlsx.js) |
-| 배포 | 정적 HTML (GitHub Pages) |
+| Backend | Python Flask |
+| Database | Railway PostgreSQL (전용) |
+| Frontend | Vanilla JS + Tailwind CSS |
+| Excel | openpyxl (서버), SheetJS (클라이언트) |
+| 배포 | Vercel |
 
 ---
 
@@ -36,104 +37,181 @@
 
 ```
 order-management/
-├── index.html              # 메인 앱 (전체 코드 포함, ~6000줄)
-├── CLAUDE.md               # 이 파일
+├── app.py                    # Flask 메인 앱
+├── config.py                 # 환경 설정
+├── requirements.txt          # Python 의존성
+├── vercel.json               # Vercel 배포 설정
+│
+├── services/
+│   ├── __init__.py
+│   └── excel_parser.py       # 엑셀 파싱 로직
+│
+├── templates/
+│   └── index.html            # 메인 페이지
+│
+├── static/
+│   ├── css/
+│   │   └── styles.css
+│   └── js/
+│       └── app.js            # 프론트엔드 로직
+│
+├── migrations/
+│   └── 001_initial.sql       # 테이블 생성 SQL
+│
 ├── .claude/
 │   └── rules/
-│       └── ai-native.md    # AI 네이티브 규칙
-└── scripts/
-    └── verify_all.js       # 검증 스크립트
+│       └── ai-native.md      # AI 네이티브 규칙
+│
+├── scripts/
+│   └── verify_all.js         # 검증 스크립트 (레거시)
+│
+├── index.html                # 레거시 (Firebase 버전)
+├── CLAUDE.md                 # 이 파일
+└── .env.example              # 환경변수 예시
 ```
 
 ---
 
-## 현재 구조적 특징
+## 데이터베이스
 
-### 모놀리식 구조 (개선 필요)
-- **문제**: 6,000줄+ 코드가 단일 HTML 파일에 존재
-- **영향**: 유지보수 어려움, 코드 탐색 불편
-- **개선 방향**: CSS/JS 파일 분리, 모듈화
+### Railway PostgreSQL (별도 프로젝트)
 
-### Firebase 의존성
-- 모든 데이터가 Firebase Realtime Database에 저장
-- 클라이언트에서 직접 Firebase 접근 (보안 규칙 중요)
+> ⚠️ jungmaein-pro, hyupshin-erp-agent와 별도의 Railway 프로젝트 사용
 
----
+**테이블 구조:**
 
-## 주요 데이터 구조 (Firebase)
-
-```javascript
-// Firebase 데이터 구조
-{
-  userList: ["사용자1", "사용자2"],
-  users: {
-    "사용자1": {
-      convertedData: [...],      // 변환완료 데이터
-      confirmedOrders: [...],    // 변환확정 데이터
-      orderManagement: [...]     // 전체주문 데이터
-    }
-  },
-  skuProducts: {...},            // SKU 상품 목록
-  vendorMappings: {...},         // 거래처별 매핑
-  partsCost: {...},              // 부위별 원가
-  packagingCost: {...}           // 포장재 원가
-}
-```
+| 테이블 | 설명 |
+|--------|------|
+| users | 사용자 (발주 담당자) |
+| sku_products | SKU 상품 마스터 |
+| sku_compositions | SKU 구성품 (부위 조합) |
+| vendor_mappings | 거래처별 상품 매핑 |
+| vendor_templates | 거래처별 엑셀 템플릿 |
+| orders | 주문 데이터 |
+| parts_cost | 부위별 원가 |
+| packaging_cost | 포장재 원가 |
 
 ---
 
-## 주요 함수 (index.html 내)
+## API 엔드포인트
 
-| 함수명 | 역할 | 위치 (대략) |
-|--------|------|-------------|
-| `handleFileSelect()` | 엑셀 파일 업로드 처리 | ~3200줄 |
-| `handleConvert()` | 발주서 변환 로직 | ~3400줄 |
-| `findHeaderRow()` | 헤더 행 자동 탐지 | ~3480줄 |
-| `autoMapColumns()` | 컬럼 자동 매핑 | 변환 로직 |
-| `findMatchingSku()` | SKU 매칭 | 변환 로직 |
-| `renderResult()` | 변환 결과 렌더링 | UI 렌더링 |
-| `handleRegisterInvoice()` | 송장 등록 | 확정 처리 |
+### 사용자
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/users | 사용자 목록 |
+| POST | /api/users | 사용자 생성 |
+| DELETE | /api/users/:id | 사용자 삭제 |
+
+### SKU 상품
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/sku-products | 상품 목록 |
+| POST | /api/sku-products | 상품 생성 |
+| PUT | /api/sku-products/:id | 상품 수정 |
+| DELETE | /api/sku-products/:id | 상품 삭제 |
+
+### 거래처
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/vendors | 거래처 목록 |
+| GET | /api/vendor-mappings | 거래처 매핑 |
+| POST | /api/vendor-mappings | 매핑 생성 |
+
+### 주문
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/orders | 주문 목록 |
+| POST | /api/orders | 주문 생성 (bulk) |
+| PUT | /api/orders/:id | 주문 수정 |
+| POST | /api/orders/bulk-update | 일괄 수정 |
+| DELETE | /api/orders/:id | 주문 삭제 |
+
+### 엑셀
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | /api/upload-excel | 엑셀 업로드 및 파싱 |
+
+### 시스템
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/health | 헬스체크 |
 
 ---
 
-## 환경 변수 / 설정
+## 환경 변수
 
-Firebase 설정이 index.html에 하드코딩되어 있음:
-```javascript
-const firebaseConfig = {
-  apiKey: "...",
-  authDomain: "...",
-  databaseURL: "...",
-  projectId: "...",
-  // ...
-};
+```bash
+# .env
+DATABASE_URL=postgresql://postgres:xxx@xxx.railway.app:5432/railway
+SECRET_KEY=your-secret-key
+DEBUG=False
 ```
-
-> ⚠️ **보안 주의**: Firebase 보안 규칙으로 데이터 접근 제어 필요
 
 ---
 
-## 개선 로드맵
+## 개발 환경 설정
 
-### Phase 1: 코드 분리 (구조 개선)
-```
-□ CSS → styles/main.css 분리
-□ JS → scripts/app.js 분리
-□ 모듈화: utils.js, firebase.js, excel.js, ui.js
+```bash
+# 1. 가상환경 생성
+python -m venv venv
+venv\Scripts\activate  # Windows
+
+# 2. 의존성 설치
+pip install -r requirements.txt
+
+# 3. 환경변수 설정
+copy .env.example .env
+# .env 파일 편집하여 DATABASE_URL 설정
+
+# 4. DB 마이그레이션 (Railway에서 직접 실행)
+# migrations/001_initial.sql 내용 실행
+
+# 5. 로컬 실행
+python app.py
 ```
 
-### Phase 2: 보안 강화
-```
-□ Firebase 보안 규칙 검토
-□ 환경변수 분리 (.env 또는 config.js)
+---
+
+## 배포
+
+```bash
+# Vercel CLI
+vercel --prod
+
+# 환경변수 설정 (Vercel 대시보드)
+DATABASE_URL=postgresql://...
+SECRET_KEY=...
 ```
 
-### Phase 3: 기능 개선
-```
-□ 에러 핸들링 강화
-□ 오프라인 지원 (IndexedDB 캐시)
-□ 성능 최적화 (대량 데이터 처리)
-```
+---
+
+## 마이그레이션 가이드 (Firebase → PostgreSQL)
+
+### Phase 1: 백엔드 구축 ✅
+- Flask 앱 기본 구조
+- API 엔드포인트 구현
+
+### Phase 2: 프론트엔드 연결 (진행 중)
+- 기존 HTML/CSS 유지
+- JS를 Firebase → Flask API 호출로 변경
+
+### Phase 3: 데이터 마이그레이션
+- Firebase 데이터 export
+- PostgreSQL로 import
+
+### Phase 4: 검증 및 전환
+- 모든 기능 테스트
+- Firebase 코드 제거
+
+---
+
+## 연관 프로젝트
+
+| 프로젝트 | 역할 | DB |
+|---------|------|-----|
+| **jungmaein-pro** | 도축장 경매 | Railway (별도) |
+| **hyupshin-erp-agent** | 협신 ERP | Railway (별도) |
+| **order-management** | 발주 관리 | Railway (전용) ← 이 프로젝트 |
 
 ---
 
@@ -145,41 +223,27 @@ const firebaseConfig = {
 
 | 원칙 | 이 프로젝트 적용 |
 |------|-----------------|
-| **검증 시스템 신뢰** | ESLint + 브라우저 테스트 통과 = 배포 가능 |
-| **점진적 개선** | 기존 기능 유지하면서 단계적 분리 |
-| **기능 보장 우선** | 리팩토링 시 기존 동작 필수 확인 |
+| **기존 기능 보장** | 리팩토링 시 기존 동작 필수 확인 |
+| **점진적 개선** | Firebase → Flask 단계적 마이그레이션 |
+| **검증 우선** | API 테스트 후 프론트 연결 |
 
 ### 검증 방법
 
 ```bash
-# JS 린트 체크
-npx eslint index.html --ext .html
+# Flask 앱 실행
+python app.py
 
-# 또는 Node.js 스크립트
-node scripts/verify_all.js
+# API 테스트
+curl http://localhost:5000/api/health
+curl http://localhost:5000/api/users
+
+# 전체 기능 테스트
+# 브라우저에서 http://localhost:5000 접속
 ```
 
 ---
 
-## 연관 프로젝트
+## 레거시 참조
 
-| 프로젝트 | 역할 |
-|---------|------|
-| **jungmaein-pro** | 도축장 경매 데이터 |
-| **platform-multisite** | 육류 데이터 크롤링 (로컬) |
-| **meat-crawler-cloud** | 클라우드 크롤러 |
-
----
-
-## 자주 사용하는 작업
-
-```bash
-# 로컬 서버 실행 (Live Server 등)
-npx serve .
-
-# 검증 실행
-node scripts/verify_all.js
-
-# GitHub Pages 배포
-git push origin main
-```
+기존 Firebase 버전은 `index.html` (루트)에 보존되어 있습니다.
+새 버전은 `templates/index.html`을 사용합니다.

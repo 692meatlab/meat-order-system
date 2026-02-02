@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>발주서 변환 및 송장 등록 시스템</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --text-color: #2c3e50;
+            --text-light: #7f8c8d;
+            --border-color: #e9ecef;
+            --bg-color: #f5f7fa;
+            --sidebar-width: 240px;
+            --sidebar-bg: #2c3e50;
+            --sidebar-hover: #34495e;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+            background: var(--bg-color);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* 사이드바 */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 100;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .connection-status {
+            padding: 8px 20px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .connection-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e74c3c;
+        }
+
+        .connection-status.connected .dot { background: #27ae60; }
+        .connection-status .text { color: #7f8c8d; }
+
+        .menu-group { margin-bottom: 10px; }
+
+        .menu-group-title {
+            padding: 12px 20px 8px;
+            color: #95a5a6;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: #bdc3c7;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .menu-item:hover { background: var(--sidebar-hover); color: white; }
+        .menu-item.active {
+            background: var(--sidebar-hover);
+            color: white;
+            border-left-color: var(--primary-color);
+        }
+
+        .menu-item .icon { margin-right: 12px; font-size: 16px; }
+        .menu-item .badge {
+            margin-left: auto;
+            background: var(--danger-color);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        /* 사용자 드롭다운 */
+        .user-dropdown { margin-bottom: 5px; }
+
+        .user-dropdown-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            color: #ecf0f1;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.05);
+            border-left: 3px solid transparent;
+        }
+
+        .user-dropdown-header:hover { background: var(--sidebar-hover); }
+        .user-dropdown-header.active { border-left-color: var(--success-color); }
+        .user-dropdown-header .user-name { display: flex; align-items: center; font-weight: 600; }
+        .user-dropdown-header .user-name .icon { margin-right: 10px; }
+        .user-dropdown-header .arrow { transition: transform 0.2s; }
+        .user-dropdown-header.expanded .arrow { transform: rotate(180deg); }
+
+        .user-dropdown-menu {
+            display: none;
+            background: rgba(0,0,0,0.15);
+        }
+
+        .user-dropdown-menu.show { display: block; }
+        .user-dropdown-menu .menu-item { padding-left: 48px; font-size: 13px; }
+
+        .btn-add-user {
+            width: 100%;
+            padding: 8px;
+            background: rgba(255,255,255,0.1);
+            border: 1px dashed rgba(255,255,255,0.3);
+            color: #95a5a6;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            margin: 10px 20px;
+            width: calc(100% - 40px);
+        }
+
+        .btn-add-user:hover { background: rgba(255,255,255,0.15); color: #bdc3c7; }
+
+        /* 메인 컨텐츠 */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .page-header { margin-bottom: 24px; }
+        .page-header h1 { color: var(--text-color); font-size: 24px; font-weight: 600; }
+        .page-header p { color: var(--text-light); margin-top: 4px; }
+
+        .page-content { display: none; }
+        .page-content.active { display: block; }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* 달력 */
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-header h2 { font-size: 20px; color: var(--text-color); }
+        .calendar-nav { display: flex; gap: 8px; }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .calendar-day-header {
+            text-align: center;
+            padding: 12px;
+            font-weight: 600;
+            color: var(--text-light);
+            font-size: 12px;
+        }
+
+        .calendar-day-header.sunday { color: #dc3545; }
+        .calendar-day-header.saturday { color: #0d6efd; }
+
+        .calendar-day {
+            min-height: 90px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .calendar-day:hover { background: #e3f2fd; border-color: var(--primary-color); }
+        .calendar-day.today { border: 2px solid var(--primary-color); background: #e3f2fd; }
+        .calendar-day.other-month { opacity: 0.4; }
+
+        .calendar-day-number {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: var(--text-color);
+        }
+
+        .calendar-day.sunday .calendar-day-number { color: #dc3545; }
+        .calendar-day.saturday .calendar-day-number { color: #0d6efd; }
+
+        .calendar-day-orders { font-size: 11px; }
+
+        .calendar-order-item {
+            background: #fff3e0;
+            color: #e65100;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-bottom: 2px;
+            font-size: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .calendar-order-item.shipped { background: #e8f5e9; color: #2e7d32; }
+        .calendar-order-item.pending { background: #fff3e0; color: #e65100; }
+
+        .calendar-order-count {
+            color: var(--primary-color);
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        /* 폼 요소 */
+        .form-row {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .form-group { flex: 1; min-width: 200px; }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        /* 버튼 */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success { background: var(--success-color); color: white; }
+        .btn-success:hover { background: #219a52; }
+        .btn-warning { background: var(--warning-color); color: white; }
+        .btn-danger { background: var(--danger-color); color: white; }
+        .btn-secondary { background: #95a5a6; color: white; }
+        .btn-secondary:hover { background: #7f8c8d; }
+        .btn-small { padding: 6px 12px; font-size: 12px; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-group { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+
+        /* 테이블 */
+        .table-container {
+            overflow-x: auto;
+            margin-top: 16px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th, td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: var(--text-color);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        tr:hover { background: #f1f3f5; }
+
+        /* 결과 박스 */
+        .result-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 16px;
+        }
+
+        .result-box h3 { margin-bottom: 16px; color: var(--text-color); }
+        .result-box h4 { margin: 16px 0 8px 0; color: var(--text-color); font-size: 14px; }
+
+        /* 상태 */
+        .status { padding: 12px; border-radius: 8px; margin-top: 12px; display: none; }
+        .status.show { display: block; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.info { background: #cce5ff; color: #004085; }
+
+        /* 업로드 영역 */
+        .upload-area {
+            border: 3px dashed #bdc3c7;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafbfc;
+        }
+
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary-color);
+            background: #ebf5fb;
+        }
+
+        .upload-area input { display: none; }
+        .upload-icon { font-size: 48px; margin-bottom: 16px; }
+        .upload-text { color: var(--text-light); font-size: 16px; }
+
+        /* 모달 */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show { display: flex; }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h3 { font-size: 18px; color: var(--text-color); }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-light); }
+        .modal-body { padding: 20px; }
+        .modal-footer { padding: 20px; border-top: 1px solid var(--border-color); display: flex; gap: 12px; justify-content: flex-end; }
+
+        /* 토스트 */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+        }
+
+        .toast {
+            background: var(--text-color);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 8px;
+            margin-top: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success { background: var(--success-color); }
+        .toast.error { background: var(--danger-color); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* 로딩 */
+        .loading {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,0.9);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .loading.show { display: flex; }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 요약 정보 */
+        .result-summary {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .summary-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .summary-item .label { color: var(--text-light); font-size: 13px; }
+        .summary-item .value { font-weight: 600; color: var(--text-color); }
+
+        /* 상태 뱃지 */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .status-badge.shipped { background: #d4edda; color: #155724; }
+        .status-badge.not-shipped { background: #fff3cd; color: #856404; }
+        .status-badge.paid { background: #cce5ff; color: #004085; }
+        .status-badge.not-paid { background: #f8d7da; color: #721c24; }
+
+        /* 반응형 */
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+            .sidebar.show { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .mobile-header { display: flex !important; }
+            .calendar-day { min-height: 60px; }
+            .calendar-day-orders { display: none; }
+        }
+
+        .mobile-header {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            align-items: center;
+            padding: 0 16px;
+            z-index: 99;
+        }
+
+        .hamburger {
+            width: 40px;
+            height: 40px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 99;
+        }
+
+        .overlay.show { display: block; }
+    </style>
+</head>
+<body>
+    <!-- 모바일 헤더 -->
+    <div class="mobile-header">
+        <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <span style="margin-left: 12px; font-weight: 600;">주문관리</span>
+    </div>
+
+    <div class="overlay" onclick="toggleSidebar()"></div>
+
+    <!-- 사이드바 -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">📦 발주서 변환 시스템</div>
+
+        <div class="connection-status" id="connection-status">
+            <span class="dot"></span>
+            <span class="text">연결 중...</span>
+        </div>
+
+        <!-- 공통 메뉴 -->
+        <div class="menu-group">
+            <div class="menu-group-title">공통</div>
+            <div class="menu-item active" onclick="showPage('dashboard')">
+                <span class="icon">📊</span> 대시보드
+            </div>
+            <div class="menu-item" onclick="showPage('integrated-view')">
+                <span class="icon">🔍</span> 통합조회
+            </div>
+        </div>
+
+        <!-- 관리 메뉴 -->
+        <div class="menu-group">
+            <div class="menu-group-title">관리</div>
+            <div class="menu-item" onclick="showPage('cost-management')">
+                <span class="icon">💰</span> 원가관리
+            </div>
+            <div class="menu-item" onclick="showPage('sku-management')">
+                <span class="icon">📋</span> SKU상품관리
+            </div>
+            <div class="menu-item" onclick="showPage('vendor-mapping')">
+                <span class="icon">🏢</span> 거래처별 상품관리
+            </div>
+            <div class="menu-item" onclick="showPage('vendor-delivery')">
+                <span class="icon">🚚</span> 거래처별 택배관리
+            </div>
+        </div>
+
+        <!-- 사용자별 메뉴 -->
+        <div class="menu-group">
+            <div class="menu-group-title">사용자별 작업</div>
+            <div id="user-menus"></div>
+            <button class="btn-add-user" onclick="openAddUserModal()">+ 사용자 추가</button>
+        </div>
+    </div>
+
+    <!-- 메인 컨텐츠 -->
+    <div class="main-content">
+        <!-- 대시보드 -->
+        <div id="dashboard" class="page-content active">
+            <div class="page-header">
+                <h1>대시보드</h1>
+                <p>배송 일정 관리 및 발주량 계산</p>
+            </div>
+
+            <!-- 달력 -->
+            <div class="card">
+                <div class="calendar-header">
+                    <div class="calendar-nav">
+                        <button class="btn btn-secondary btn-small" onclick="changeMonth(-1)">◀ 이전</button>
+                    </div>
+                    <h2 id="calendar-title">2026년 1월</h2>
+                    <div class="calendar-nav">
+                        <button class="btn btn-secondary btn-small" onclick="changeMonth(1)">다음 ▶</button>
+                        <button class="btn btn-primary btn-small" onclick="goToToday()">오늘</button>
+                    </div>
+                </div>
+                <div class="calendar-grid" id="calendar-grid"></div>
+            </div>
+
+            <!-- 기간별 발주량 계산 -->
+            <div class="card">
+                <div class="card-title">기간별 발주량 계산</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>시작일</label>
+                        <input type="date" id="range-start">
+                    </div>
+                    <div class="form-group">
+                        <label>종료일</label>
+                        <input type="date" id="range-end">
+                    </div>
+                    <div class="form-group" style="flex: 0;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-success" onclick="calculateRangeOrder()">발주량 계산</button>
+                    </div>
+                </div>
+                <div id="range-result"></div>
+            </div>
+        </div>
+
+        <!-- 통합조회 -->
+        <div id="integrated-view" class="page-content">
+            <div class="page-header">
+                <h1>통합조회</h1>
+                <p>모든 사용자의 주문 데이터를 통합하여 조회합니다</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>전체 주문 현황</span>
+                    <button class="btn btn-primary btn-small" onclick="loadIntegratedOrders()">새로고침</button>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>사용자</label>
+                        <select id="integrated-user-filter">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>기간</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="date" id="integrated-date-from" style="flex: 1;">
+                            <span>~</span>
+                            <input type="date" id="integrated-date-to" style="flex: 1;">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>상태</label>
+                        <select id="integrated-status-filter">
+                            <option value="">전체</option>
+                            <option value="pending">미출고</option>
+                            <option value="shipped">출고완료</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 0;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-secondary" onclick="loadIntegratedOrders()">필터 적용</button>
+                    </div>
+                </div>
+
+                <div class="result-summary" id="integrated-summary"></div>
+                <div class="table-container" id="integrated-table"></div>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="downloadIntegratedExcel()">엑셀 다운로드</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 원가관리 -->
+        <div id="cost-management" class="page-content">
+            <div class="page-header">
+                <h1>원가관리</h1>
+                <p>부위별 원가 및 포장재 원가를 관리합니다</p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- 부위별 원가 -->
+                <div class="card">
+                    <div class="card-title">
+                        <span>부위별 원가 (100g당)</span>
+                        <button class="btn btn-primary btn-small" onclick="openAddPartModal()">+ 추가</button>
+                    </div>
+                    <div class="table-container" id="parts-table"></div>
+                </div>
+
+                <!-- 포장재 원가 -->
+                <div class="card">
+                    <div class="card-title">
+                        <span>포장재 원가</span>
+                        <button class="btn btn-primary btn-small" onclick="openAddPackagingModal()">+ 추가</button>
+                    </div>
+                    <div class="table-container" id="packaging-table"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SKU상품관리 -->
+        <div id="sku-management" class="page-content">
+            <div class="page-header">
+                <h1>SKU상품관리</h1>
+                <p>SKU 상품과 구성품을 관리합니다</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>SKU 상품 목록</span>
+                    <button class="btn btn-primary" onclick="openAddSkuModal()">+ 상품 추가</button>
+                </div>
+                <div class="table-container" id="sku-table"></div>
+            </div>
+        </div>
+
+        <!-- 거래처별 상품관리 -->
+        <div id="vendor-mapping" class="page-content">
+            <div class="page-header">
+                <h1>거래처별 상품관리</h1>
+                <p>거래처 상품명과 SKU 매핑을 관리합니다</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>거래처 매핑</span>
+                    <button class="btn btn-primary" onclick="openAddMappingModal()">+ 매핑 추가</button>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>거래처 선택</label>
+                        <select id="vendor-filter" onchange="loadVendorMappings()">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-container" id="vendor-mapping-table"></div>
+            </div>
+        </div>
+
+        <!-- 거래처별 택배관리 -->
+        <div id="vendor-delivery" class="page-content">
+            <div class="page-header">
+                <h1>거래처별 택배관리</h1>
+                <p>거래처별 엑셀 템플릿을 관리합니다</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">거래처 템플릿 설정</div>
+                <div class="table-container" id="vendor-template-table"></div>
+            </div>
+        </div>
+
+        <!-- 발주서 변환 (사용자별) -->
+        <div id="convert" class="page-content">
+            <div class="page-header">
+                <h1>발주서 변환</h1>
+                <p id="convert-user-info">사용자를 선택하세요</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">엑셀 파일 업로드</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>발주처 선택</label>
+                        <select id="vendor-name">
+                            <option value="">발주처를 선택하세요</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="upload-area" id="upload-area">
+                    <input type="file" id="file-input" accept=".xlsx,.xls" multiple>
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">엑셀 파일을 드래그하거나 클릭하여 업로드</div>
+                </div>
+                <div id="file-info" class="status success"></div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn btn-primary" id="btn-convert" onclick="convertOrders()" disabled>변환하기</button>
+                </div>
+            </div>
+
+            <div class="card" id="convert-result" style="display: none;">
+                <div class="card-title">
+                    <span>변환 결과</span>
+                    <span id="convert-result-summary"></span>
+                </div>
+                <div class="table-container" id="convert-result-table"></div>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="confirmConvertedData()">변환확정으로 이동</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 변환확정 (사용자별) -->
+        <div id="confirmed" class="page-content">
+            <div class="page-header">
+                <h1>변환확정</h1>
+                <p id="confirmed-user-info">사용자를 선택하세요</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>확정 대기 목록</span>
+                    <span class="badge" id="confirmed-badge">0</span>
+                </div>
+                <div class="result-summary" id="confirmed-summary"></div>
+                <div class="table-container" id="confirmed-table"></div>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="registerOrders()">전체주문관리로 등록</button>
+                    <button class="btn btn-primary" onclick="downloadConfirmedExcel()">엑셀 다운로드</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 전체주문관리 (사용자별) -->
+        <div id="order-management" class="page-content">
+            <div class="page-header">
+                <h1>전체주문관리</h1>
+                <p id="order-user-info">사용자를 선택하세요</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>주문 목록</span>
+                    <span class="badge" id="order-badge">0</span>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>기간</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="date" id="order-date-from" style="flex: 1;">
+                            <span>~</span>
+                            <input type="date" id="order-date-to" style="flex: 1;">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>상태</label>
+                        <select id="order-status-filter">
+                            <option value="">전체</option>
+                            <option value="pending">미출고</option>
+                            <option value="shipped">출고완료</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 0;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-secondary" onclick="loadUserOrders()">필터 적용</button>
+                    </div>
+                </div>
+                <div class="result-summary" id="order-summary"></div>
+                <div class="table-container" id="order-table"></div>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="bulkUpdateStatus('shipped', true)">선택 출고완료</button>
+                    <button class="btn btn-primary" onclick="bulkUpdateStatus('paid', true)">선택 입금완료</button>
+                    <button class="btn btn-warning" onclick="downloadOrderExcel()">엑셀 다운로드</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 날짜 상세 모달 -->
+    <div class="modal" id="day-modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 id="day-modal-title">날짜 상세</h3>
+                <button class="modal-close" onclick="closeDayModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="day-orders-list"></div>
+                <div class="btn-group" style="margin-top: 16px;">
+                    <button class="btn btn-success" onclick="calculateDayOrder()">발주량 계산</button>
+                </div>
+                <div id="day-calculation-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 사용자 추가 모달 -->
+    <div class="modal" id="user-modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>사용자 추가</h3>
+                <button class="modal-close" onclick="closeUserModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>사용자 이름</label>
+                    <input type="text" id="new-user-name" placeholder="예: 홍길동">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeUserModal()">취소</button>
+                <button class="btn btn-primary" onclick="addUser()">추가</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 부위 추가 모달 -->
+    <div class="modal" id="part-modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>부위 추가/수정</h3>
+                <button class="modal-close" onclick="closePartModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>부위명</label>
+                    <input type="text" id="part-name" placeholder="예: 등심">
+                </div>
+                <div class="form-group">
+                    <label>100g당 원가 (원)</label>
+                    <input type="number" id="part-price" placeholder="예: 7800">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closePartModal()">취소</button>
+                <button class="btn btn-primary" onclick="savePart()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 포장재 추가 모달 -->
+    <div class="modal" id="packaging-modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>포장재 추가/수정</h3>
+                <button class="modal-close" onclick="closePackagingModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>포장재명</label>
+                    <input type="text" id="packaging-name" placeholder="예: 선물포장">
+                </div>
+                <div class="form-group">
+                    <label>가격 (원)</label>
+                    <input type="number" id="packaging-price" placeholder="예: 5000">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closePackagingModal()">취소</button>
+                <button class="btn btn-primary" onclick="savePackaging()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SKU 추가/수정 모달 -->
+    <div class="modal" id="sku-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="sku-modal-title">SKU 상품 추가</h3>
+                <button class="modal-close" onclick="closeSkuModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>상품명</label>
+                        <input type="text" id="sku-name" placeholder="예: 한우 등심 세트 1kg">
+                    </div>
+                    <div class="form-group">
+                        <label>포장재</label>
+                        <select id="sku-packaging"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>판매가격 (원)</label>
+                        <input type="number" id="sku-price" placeholder="예: 89000">
+                    </div>
+                </div>
+                <div style="margin-top: 16px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">구성품</label>
+                    <div id="composition-list"></div>
+                    <button class="btn btn-secondary btn-small" onclick="addCompositionRow()">+ 구성품 추가</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSkuModal()">취소</button>
+                <button class="btn btn-primary" onclick="saveSku()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 매핑 추가 모달 -->
+    <div class="modal" id="mapping-modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>거래처 매핑 추가</h3>
+                <button class="modal-close" onclick="closeMappingModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>거래처명</label>
+                    <input type="text" id="mapping-vendor" placeholder="예: 정마인푸드">
+                </div>
+                <div class="form-group">
+                    <label>상품코드</label>
+                    <input type="text" id="mapping-code" placeholder="예: JM-001">
+                </div>
+                <div class="form-group">
+                    <label>거래처 상품명</label>
+                    <input type="text" id="mapping-product-name" placeholder="예: 등심세트(1kg)">
+                </div>
+                <div class="form-group">
+                    <label>SKU 상품</label>
+                    <select id="mapping-sku"></select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeMappingModal()">취소</button>
+                <button class="btn btn-primary" onclick="saveMapping()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 로딩 -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p style="margin-top: 16px;">처리 중...</p>
+    </div>
+
+    <!-- 토스트 -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
