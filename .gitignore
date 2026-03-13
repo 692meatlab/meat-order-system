@@ -34,5 +34,11 @@ build/
 # Node
 node_modules/
 
+# Test/Coverage
+.pytest_cache/
+htmlcov/
+.coverage
+tests/__pycache__/
+
 # Temp
 nul

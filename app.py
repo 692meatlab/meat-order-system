@@ -3,17 +3,73 @@ Order Management - Flask 메인 앱
 발주서 변환 및 송장 등록 시스템
 """
 import os
+import logging
 from datetime import datetime, timedelta
+from functools import wraps
 from flask import Flask, render_template, jsonify, request, g, make_response
+from flask_cors import CORS
 from dotenv import load_dotenv
 import psycopg
 from psycopg.rows import dict_row
 import json
+from config import Config
 
 load_dotenv()
 
+# ============================================================
+# Logging 설정
+# ============================================================
+logging.basicConfig(
+    level=getattr(logging, Config.LOG_LEVEL, logging.INFO),
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger('order-management')
+
+# ============================================================
+# App 초기화
+# ============================================================
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
+app.secret_key = Config.SECRET_KEY
+CORS(app, origins=Config.CORS_ORIGINS.split(',') if Config.CORS_ORIGINS != '*' else '*')
+
+
+# ============================================================
+# 인증 미들웨어
+# ============================================================
+def require_api_key(f):
+    """API 키 인증 데코레이터 (환경변수 API_KEY가 설정된 경우에만 활성화)"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not Config.API_KEY:
+            return f(*args, **kwargs)
+        api_key = request.headers.get('X-API-Key') or request.args.get('api_key')
+        if api_key != Config.API_KEY:
+            logger.warning(f'인증 실패: {request.remote_addr} -> {request.path}')
+            return jsonify({'error': '인증이 필요합니다'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ============================================================
+# 입력 검증 유틸리티
+# ============================================================
+def validate_required(data, fields):
+    """필수 필드 검증"""
+    if not data:
+        return jsonify({'error': '요청 데이터가 없습니다'}), 400
+    missing = [f for f in fields if not data.get(f)]
+    if missing:
+        return jsonify({'error': f'필수 필드 누락: {", ".join(missing)}'}), 400
+    return None
+
+
+def safe_int(value, default=0):
+    """안전한 정수 변환"""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 # ============================================================
@@ -22,9 +78,11 @@ app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
 def get_db():
     """DB 연결 가져오기"""
     if 'db' not in g:
-        database_url = os.getenv('DATABASE_URL')
-        if database_url:
-            g.db = psycopg.connect(database_url, row_factory=dict_row)
+        try:
+            g.db = psycopg.connect(Config.DATABASE_URL, row_factory=dict_row)
+        except Exception as e:
+            logger.error(f'DB 연결 실패: {e}')
+            return None
     return g.get('db')
 
 
@@ -127,7 +185,7 @@ def index():
                 init_data['month'] = month
 
         except Exception as e:
-            print(f"Init data error: {e}")
+            logger.error(f'[index] 초기 데이터 로드 오류: {e}', exc_info=True)
 
     response = make_response(render_template('index.html'))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -144,7 +202,7 @@ def get_init_data():
     """초기 로드에 필요한 모든 데이터를 한 번에 반환"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     year = request.args.get('year', type=int, default=datetime.now().year)
     month = request.args.get('month', type=int, default=datetime.now().month)
@@ -241,7 +299,8 @@ def get_init_data():
             'month': month
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_init_data] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -252,7 +311,7 @@ def get_dashboard_stats():
     """대시보드 통계 (단일 쿼리 최적화)"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -277,7 +336,8 @@ def get_dashboard_stats():
             'sku_count': stats['sku_count']
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_dashboard_stats] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/dashboard/calendar')
@@ -285,7 +345,7 @@ def get_calendar_data():
     """달력용 주문 데이터 (개별 주문 포함)"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     year = request.args.get('year', type=int, default=datetime.now().year)
     month = request.args.get('month', type=int, default=datetime.now().month)
@@ -324,7 +384,8 @@ def get_calendar_data():
 
         return jsonify({'calendar': result, 'year': year, 'month': month})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_calendar_data] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/dashboard/range-orders')
@@ -332,7 +393,7 @@ def get_range_orders():
     """기간별 발주량 계산"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     start_date = request.args.get('start')
     end_date = request.args.get('end')
@@ -367,7 +428,8 @@ def get_range_orders():
             'daily_summary': daily_summary
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_range_orders] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -378,7 +440,7 @@ def get_integrated_orders():
     """통합 주문 조회 (모든 사용자)"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     user_id = request.args.get('user_id', type=int)
     status = request.args.get('status')
@@ -436,7 +498,8 @@ def get_integrated_orders():
 
         return jsonify({'orders': orders, 'stats': stats})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_integrated_orders] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -447,7 +510,7 @@ def get_users():
     """사용자 목록 조회"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -455,15 +518,17 @@ def get_users():
             users = cur.fetchall()
         return jsonify({'users': users})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_users] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/users', methods=['POST'])
+@require_api_key
 def create_user():
     """사용자 생성"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     name = data.get('name', '').strip()
@@ -483,15 +548,17 @@ def create_user():
         return jsonify({'user': user}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[create_user] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@require_api_key
 def delete_user(user_id):
     """사용자 삭제"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -500,7 +567,8 @@ def delete_user(user_id):
         return jsonify({'success': True})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[delete_user] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -511,7 +579,7 @@ def get_parts_cost():
     """부위별 원가 조회"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -519,15 +587,17 @@ def get_parts_cost():
             parts = cur.fetchall()
         return jsonify({'parts': parts})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_parts_cost] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/parts-cost', methods=['POST'])
+@require_api_key
 def create_parts_cost():
     """부위별 원가 생성"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     part_name = data.get('part_name', '').strip()
@@ -550,15 +620,17 @@ def create_parts_cost():
         return jsonify({'part': part}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[create_parts_cost] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/parts-cost/<int:part_id>', methods=['DELETE'])
+@require_api_key
 def delete_parts_cost(part_id):
     """부위별 원가 삭제"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -567,7 +639,8 @@ def delete_parts_cost(part_id):
         return jsonify({'success': True})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[delete_parts_cost] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -578,7 +651,7 @@ def get_packaging_cost():
     """포장재 원가 조회"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -586,15 +659,17 @@ def get_packaging_cost():
             packaging = cur.fetchall()
         return jsonify({'packaging': packaging})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_packaging_cost] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/packaging-cost', methods=['POST'])
+@require_api_key
 def create_packaging_cost():
     """포장재 원가 생성"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     packaging_name = data.get('packaging_name', '').strip()
@@ -616,15 +691,17 @@ def create_packaging_cost():
         return jsonify({'packaging': pkg}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[create_packaging_cost] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/packaging-cost/<int:pkg_id>', methods=['DELETE'])
+@require_api_key
 def delete_packaging_cost(pkg_id):
     """포장재 원가 삭제"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -633,7 +710,8 @@ def delete_packaging_cost(pkg_id):
         return jsonify({'success': True})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[delete_packaging_cost] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -644,7 +722,7 @@ def get_sku_products():
     """SKU 상품 목록 조회 (구성품 포함, N+1 최적화)"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -684,15 +762,17 @@ def get_sku_products():
 
         return jsonify({'products': products})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_sku_products] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/sku-products', methods=['POST'])
+@require_api_key
 def create_sku_product():
     """SKU 상품 생성"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     sku_name = data.get('sku_name', '').strip()
@@ -729,15 +809,17 @@ def create_sku_product():
         return jsonify({'product': product}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[create_sku_product] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/sku-products/<int:product_id>', methods=['PUT'])
+@require_api_key
 def update_sku_product(product_id):
     """SKU 상품 수정"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     sku_name = data.get('sku_name', '').strip()
@@ -775,15 +857,17 @@ def update_sku_product(product_id):
         return jsonify({'product': product})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[update_sku_product] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/sku-products/<int:product_id>', methods=['DELETE'])
+@require_api_key
 def delete_sku_product(product_id):
     """SKU 상품 삭제"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -792,7 +876,8 @@ def delete_sku_product(product_id):
         return jsonify({'success': True})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[delete_sku_product] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -803,7 +888,7 @@ def get_vendors():
     """거래처 목록 조회"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -811,7 +896,8 @@ def get_vendors():
             vendors = [row['vendor_name'] for row in cur.fetchall()]
         return jsonify({'vendors': vendors})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_vendors] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/vendor-mappings', methods=['GET'])
@@ -819,7 +905,7 @@ def get_vendor_mappings():
     """거래처 매핑 조회"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     vendor = request.args.get('vendor')
 
@@ -845,15 +931,17 @@ def get_vendor_mappings():
             mappings = cur.fetchall()
         return jsonify({'mappings': mappings})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_vendor_mappings] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/vendor-mappings', methods=['POST'])
+@require_api_key
 def create_vendor_mapping():
     """거래처 매핑 생성"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     vendor_name = data.get('vendor_name', '').strip()
@@ -876,7 +964,8 @@ def create_vendor_mapping():
         return jsonify({'mapping': mapping}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[create_vendor_mapping] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/vendor-mappings/<int:mapping_id>', methods=['PUT'])
@@ -884,7 +973,7 @@ def update_vendor_mapping(mapping_id):
     """거래처 매핑 수정"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     sku_product_id = data.get('sku_product_id')
@@ -900,7 +989,8 @@ def update_vendor_mapping(mapping_id):
         return jsonify({'mapping': mapping})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[update_vendor_mapping] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/vendor-mappings/<int:mapping_id>', methods=['DELETE'])
@@ -908,7 +998,7 @@ def delete_vendor_mapping(mapping_id):
     """거래처 매핑 삭제"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -917,7 +1007,8 @@ def delete_vendor_mapping(mapping_id):
         return jsonify({'success': True})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[delete_vendor_mapping] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -928,7 +1019,7 @@ def get_vendor_templates():
     """거래처 템플릿 조회"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -936,15 +1027,17 @@ def get_vendor_templates():
             templates = cur.fetchall()
         return jsonify({'templates': templates})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_vendor_templates] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/vendor-templates', methods=['POST'])
+@require_api_key
 def save_vendor_template():
     """거래처 템플릿 저장"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     vendor_name = data.get('vendor_name', '').strip()
@@ -966,7 +1059,8 @@ def save_vendor_template():
         return jsonify({'template': template}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[save_vendor_template] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -977,7 +1071,7 @@ def get_orders():
     """주문 목록 조회"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     user_id = request.args.get('user_id', type=int)
     status = request.args.get('status')
@@ -1018,15 +1112,17 @@ def get_orders():
             orders = cur.fetchall()
         return jsonify({'orders': orders})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[get_orders] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/orders', methods=['POST'])
+@require_api_key
 def create_orders():
     """주문 생성 (bulk)"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     orders = data.get('orders', [])
@@ -1078,18 +1174,21 @@ def create_orders():
                 ))
                 created.append(cur.fetchone()['id'])
             conn.commit()
+        logger.info(f'주문 {len(created)}건 생성 완료 (user_id={user_id})')
         return jsonify({'created_ids': created, 'count': len(created)}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[create_orders] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/orders/<int:order_id>', methods=['PUT'])
+@require_api_key
 def update_order(order_id):
     """주문 수정"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
 
@@ -1142,15 +1241,17 @@ def update_order(order_id):
         return jsonify({'order': order})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[update_order] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/orders/bulk-update', methods=['POST'])
+@require_api_key
 def bulk_update_orders():
     """주문 일괄 수정"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     order_ids = data.get('order_ids', [])
@@ -1177,35 +1278,41 @@ def bulk_update_orders():
                 cur.execute(query, params)
 
             conn.commit()
+        logger.info(f'주문 {len(order_ids)}건 일괄 수정')
         return jsonify({'updated': len(order_ids)})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[bulk_update_orders] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/orders/<int:order_id>', methods=['DELETE'])
+@require_api_key
 def delete_order(order_id):
     """주문 삭제"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
             cur.execute('DELETE FROM orders WHERE id = %s', (order_id,))
             conn.commit()
+        logger.info(f'주문 삭제: id={order_id}')
         return jsonify({'success': True})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[delete_order] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/orders/bulk-delete', methods=['POST'])
+@require_api_key
 def bulk_delete_orders():
     """주문 일괄 삭제"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     order_ids = data.get('order_ids', [])
@@ -1217,10 +1324,12 @@ def bulk_delete_orders():
         with conn.cursor() as cur:
             cur.execute('DELETE FROM orders WHERE id = ANY(%s)', (order_ids,))
             conn.commit()
+        logger.info(f'주문 {len(order_ids)}건 일괄 삭제')
         return jsonify({'deleted': len(order_ids)})
     except Exception as e:
         conn.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[bulk_delete_orders] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================
@@ -1247,7 +1356,7 @@ def order_stats():
     """주문 통계 집계 - 거래처별, 월별, SKU별"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -1306,7 +1415,8 @@ def order_stats():
             'summary': summary
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[order_stats] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/orders/check-duplicates', methods=['POST'])
@@ -1314,7 +1424,7 @@ def check_duplicates():
     """중복 주문 감지 - 등록 전 중복 후보 반환"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     data = request.get_json()
     orders_to_check = data.get('orders', [])
@@ -1351,7 +1461,8 @@ def check_duplicates():
 
         return jsonify({'duplicates': duplicates})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[check_duplicates] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/orders/anomaly-stats')
@@ -1359,7 +1470,7 @@ def anomaly_stats():
     """이상치 감지용 통계 - 거래처+SKU별 평균 수량/단가"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
@@ -1388,7 +1499,8 @@ def anomaly_stats():
 
         return jsonify({'stats': stats})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[anomaly_stats] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 @app.route('/api/vendor-mappings/suggest')
@@ -1396,7 +1508,7 @@ def suggest_mappings():
     """유사 SKU 제안 - 상품명 기반 vendor_mappings 검색"""
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     query = request.args.get('q', '').strip()
     vendor = request.args.get('vendor', '').strip()
@@ -1440,7 +1552,8 @@ def suggest_mappings():
             'sku_suggestions': [dict(s) for s in sku_suggestions] if len(suggestions) < 5 else []
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'[suggest_mappings] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
 # ============================================================

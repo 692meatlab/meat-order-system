@@ -1,14 +1,17 @@
-"""
-Order Management - 환경 설정
-"""
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database
-DATABASE_URL = os.getenv('DATABASE_URL')
+class Config:
+    SECRET_KEY = os.getenv('SECRET_KEY', os.urandom(32).hex())
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    API_KEY = os.getenv('API_KEY', '')
+    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+    CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
-# App settings
-DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
-SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    @staticmethod
+    def validate():
+        if not Config.DATABASE_URL:
+            raise ValueError("DATABASE_URL 환경변수가 설정되지 않았습니다")

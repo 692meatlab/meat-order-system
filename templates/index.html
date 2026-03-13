@@ -688,7 +688,7 @@
 <body>
     <!-- 모바일 헤더 -->
     <div class="mobile-header">
-        <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <button class="hamburger" onclick="toggleSidebar()" aria-label="메뉴 열기">☰</button>
         <span style="margin-left: 12px; font-weight: 600;">주문관리</span>
     </div>
 
@@ -1044,11 +1044,11 @@
     </div>
 
     <!-- 날짜 상세 모달 -->
-    <div class="modal" id="day-modal">
+    <div class="modal" id="day-modal" role="dialog" aria-modal="true" aria-labelledby="day-modal-title">
         <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
                 <h3 id="day-modal-title">날짜 상세</h3>
-                <button class="modal-close" onclick="closeDayModal()">&times;</button>
+                <button class="modal-close" onclick="closeDayModal()" aria-label="닫기">&times;</button>
             </div>
             <div class="modal-body">
                 <div id="day-orders-list"></div>
@@ -1061,11 +1061,11 @@
     </div>
 
     <!-- 사용자 추가 모달 -->
-    <div class="modal" id="user-modal">
+    <div class="modal" id="user-modal" role="dialog" aria-modal="true" aria-labelledby="user-modal-title">
         <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header">
-                <h3>사용자 추가</h3>
-                <button class="modal-close" onclick="closeUserModal()">&times;</button>
+                <h3 id="user-modal-title">사용자 추가</h3>
+                <button class="modal-close" onclick="closeUserModal()" aria-label="닫기">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -1081,11 +1081,11 @@
     </div>
 
     <!-- 부위 추가 모달 -->
-    <div class="modal" id="part-modal">
+    <div class="modal" id="part-modal" role="dialog" aria-modal="true" aria-labelledby="part-modal-title">
         <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header">
-                <h3>부위 추가/수정</h3>
-                <button class="modal-close" onclick="closePartModal()">&times;</button>
+                <h3 id="part-modal-title">부위 추가/수정</h3>
+                <button class="modal-close" onclick="closePartModal()" aria-label="닫기">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -1105,11 +1105,11 @@
     </div>
 
     <!-- 포장재 추가 모달 -->
-    <div class="modal" id="packaging-modal">
+    <div class="modal" id="packaging-modal" role="dialog" aria-modal="true" aria-labelledby="packaging-modal-title">
         <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header">
-                <h3>포장재 추가/수정</h3>
-                <button class="modal-close" onclick="closePackagingModal()">&times;</button>
+                <h3 id="packaging-modal-title">포장재 추가/수정</h3>
+                <button class="modal-close" onclick="closePackagingModal()" aria-label="닫기">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -1129,11 +1129,11 @@
     </div>
 
     <!-- SKU 추가/수정 모달 -->
-    <div class="modal" id="sku-modal">
+    <div class="modal" id="sku-modal" role="dialog" aria-modal="true" aria-labelledby="sku-modal-title">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="sku-modal-title">SKU 상품 추가</h3>
-                <button class="modal-close" onclick="closeSkuModal()">&times;</button>
+                <button class="modal-close" onclick="closeSkuModal()" aria-label="닫기">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-row">
@@ -1164,11 +1164,11 @@
     </div>
 
     <!-- 매핑 추가 모달 -->
-    <div class="modal" id="mapping-modal">
+    <div class="modal" id="mapping-modal" role="dialog" aria-modal="true" aria-labelledby="mapping-modal-title">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
-                <h3>거래처 매핑 추가</h3>
-                <button class="modal-close" onclick="closeMappingModal()">&times;</button>
+                <h3 id="mapping-modal-title">거래처 매핑 추가</h3>
+                <button class="modal-close" onclick="closeMappingModal()" aria-label="닫기">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -1196,11 +1196,11 @@
     </div>
 
     <!-- 빠른매칭 모달 -->
-    <div class="modal" id="quick-match-modal">
+    <div class="modal" id="quick-match-modal" role="dialog" aria-modal="true" aria-labelledby="quick-match-modal-title">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
-                <h3>빠른 SKU 매칭</h3>
-                <button class="modal-close" onclick="closeQuickMatchModal()">&times;</button>
+                <h3 id="quick-match-modal-title">빠른 SKU 매칭</h3>
+                <button class="modal-close" onclick="closeQuickMatchModal()" aria-label="닫기">&times;</button>
             </div>
             <div class="modal-body">
                 <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
@@ -1243,6 +1243,10 @@
     <!-- 토스트 -->
     <div class="toast-container" id="toast-container"></div>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.core.js"></script>
+    <script src="/static/js/app.ui.js"></script>
+    <script src="/static/js/app.convert.js"></script>
+    <script src="/static/js/app.orders.js"></script>
+    <script src="/static/js/app.features.js"></script>
 </body>
 </html>
