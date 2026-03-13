@@ -576,6 +576,113 @@
         }
 
         .overlay.show { display: block; }
+
+        /* Phase 1: 자동완성 */
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+        .autocomplete-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .autocomplete-item:hover { background: #e8f4fd; }
+
+        /* Phase 1: 이상치 경고 */
+        .anomaly-warning {
+            background: #fff3cd;
+            border-left: 3px solid #f39c12;
+        }
+        .anomaly-tooltip {
+            position: absolute;
+            background: #2c3e50;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            z-index: 1001;
+            pointer-events: none;
+        }
+
+        /* Phase 1: 대시보드 통계 */
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid var(--border-color);
+        }
+        .stat-value { font-size: 28px; font-weight: 700; }
+        .stat-label { font-size: 13px; color: var(--text-light); margin-top: 4px; }
+        .stat-unit { font-size: 11px; color: #bdc3c7; }
+        .stats-chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid var(--border-color);
+        }
+        .stats-chart-card h4 {
+            font-size: 14px;
+            color: var(--text-color);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+        .bar-row { display: flex; align-items: center; gap: 8px; }
+        .bar-label { width: 120px; font-size: 12px; color: var(--text-color); text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bar-track { flex: 1; height: 20px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; background: linear-gradient(90deg, #3498db, #2980b9); border-radius: 4px; transition: width 0.5s ease; }
+        .bar-value { width: 60px; font-size: 12px; color: var(--text-light); text-align: right; flex-shrink: 0; }
+
+        /* Phase 2: SKU 제안 */
+        .suggestion-item {
+            padding: 6px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+        .suggestion-item:hover { background: #e8f4fd; }
+        .suggestion-sku { font-weight: 500; }
+
+        /* Phase 2: 배송 상태 뱃지 */
+        .delivery-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+
+        /* 반응형: 통계 카드 */
+        @media (max-width: 768px) {
+            .stats-cards { grid-template-columns: repeat(2, 1fr); }
+            .stats-chart-card { grid-column: 1 / -1; }
+        }
     </style>
 </head>
 <body>
@@ -654,6 +761,17 @@
                     </div>
                 </div>
                 <div class="calendar-grid" id="calendar-grid"></div>
+            </div>
+
+            <!-- 주문 통계 -->
+            <div class="card">
+                <div class="card-title">
+                    <span>주문 통계</span>
+                    <button class="btn btn-primary btn-small" onclick="loadDashboardStats()">새로고침</button>
+                </div>
+                <div id="dashboard-stats">
+                    <p style="color: #999; text-align: center;">통계 데이터를 불러오는 중...</p>
+                </div>
             </div>
 
             <!-- 기간별 발주량 계산 -->
@@ -1101,6 +1219,7 @@
                         <option value="">SKU 상품을 선택하세요</option>
                     </select>
                 </div>
+                <div id="sku-suggestions-list" style="margin-top: 12px;"></div>
                 <div class="form-group" style="margin-top: 12px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                         <input type="checkbox" id="quick-match-save-mapping" checked>

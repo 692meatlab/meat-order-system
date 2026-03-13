@@ -1240,6 +1240,210 @@ def health_check():
 
 
 # ============================================================
+# 통계 및 분석 API
+# ============================================================
+@app.route('/api/orders/stats')
+def order_stats():
+    """주문 통계 집계 - 거래처별, 월별, SKU별"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        with conn.cursor() as cur:
+            # 거래처별 집계
+            cur.execute('''
+                SELECT vendor_name, COUNT(*) as count,
+                       SUM(quantity) as total_qty,
+                       SUM(CASE WHEN shipped = true THEN 1 ELSE 0 END) as shipped_count,
+                       SUM(CASE WHEN paid = true THEN 1 ELSE 0 END) as paid_count
+                FROM orders
+                WHERE vendor_name IS NOT NULL
+                GROUP BY vendor_name
+                ORDER BY count DESC
+            ''')
+            by_vendor = cur.fetchall()
+
+            # 월별 집계 (최근 6개월)
+            cur.execute('''
+                SELECT TO_CHAR(order_date, 'YYYY-MM') as month,
+                       COUNT(*) as count,
+                       SUM(quantity) as total_qty
+                FROM orders
+                WHERE order_date >= CURRENT_DATE - INTERVAL '6 months'
+                GROUP BY TO_CHAR(order_date, 'YYYY-MM')
+                ORDER BY month
+            ''')
+            by_month = cur.fetchall()
+
+            # SKU별 집계
+            cur.execute('''
+                SELECT sku_name, COUNT(*) as count,
+                       SUM(quantity) as total_qty
+                FROM orders
+                WHERE sku_name IS NOT NULL AND sku_name != ''
+                GROUP BY sku_name
+                ORDER BY total_qty DESC
+                LIMIT 20
+            ''')
+            by_sku = cur.fetchall()
+
+            # 전체 요약
+            cur.execute('''
+                SELECT COUNT(*) as total,
+                       SUM(CASE WHEN shipped = true THEN 1 ELSE 0 END) as shipped,
+                       SUM(CASE WHEN paid = true THEN 1 ELSE 0 END) as paid,
+                       SUM(CASE WHEN invoice_issued = true THEN 1 ELSE 0 END) as invoice_issued,
+                       SUM(quantity) as total_qty
+                FROM orders
+            ''')
+            summary = cur.fetchone()
+
+        return jsonify({
+            'by_vendor': by_vendor,
+            'by_month': by_month,
+            'by_sku': by_sku,
+            'summary': summary
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/orders/check-duplicates', methods=['POST'])
+def check_duplicates():
+    """중복 주문 감지 - 등록 전 중복 후보 반환"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    data = request.get_json()
+    orders_to_check = data.get('orders', [])
+
+    if not orders_to_check:
+        return jsonify({'duplicates': []})
+
+    try:
+        duplicates = []
+        with conn.cursor() as cur:
+            for idx, order in enumerate(orders_to_check):
+                recipient = order.get('recipient', '')
+                sku_name = order.get('sku_name', '')
+
+                if not recipient or not sku_name:
+                    continue
+
+                cur.execute('''
+                    SELECT id, vendor_name, sku_name, quantity, recipient, address,
+                           order_date, status
+                    FROM orders
+                    WHERE recipient = %s AND sku_name = %s
+                    AND order_date >= CURRENT_DATE - INTERVAL '7 days'
+                    LIMIT 5
+                ''', (recipient, sku_name))
+
+                matches = cur.fetchall()
+                if matches:
+                    duplicates.append({
+                        'index': idx,
+                        'order': order,
+                        'existing': matches
+                    })
+
+        return jsonify({'duplicates': duplicates})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/orders/anomaly-stats')
+def anomaly_stats():
+    """이상치 감지용 통계 - 거래처+SKU별 평균 수량/단가"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT vendor_name, sku_name,
+                       AVG(quantity) as avg_qty,
+                       STDDEV(quantity) as stddev_qty,
+                       AVG(unit_price) as avg_price,
+                       STDDEV(unit_price) as stddev_price,
+                       COUNT(*) as sample_count
+                FROM orders
+                WHERE vendor_name IS NOT NULL AND sku_name IS NOT NULL
+                AND sku_name != ''
+                GROUP BY vendor_name, sku_name
+                HAVING COUNT(*) >= 3
+            ''')
+            stats = cur.fetchall()
+
+            # float 변환 (Decimal 호환)
+            for s in stats:
+                for key in ['avg_qty', 'stddev_qty', 'avg_price', 'stddev_price']:
+                    if s[key] is not None:
+                        s[key] = float(s[key])
+                    else:
+                        s[key] = 0
+
+        return jsonify({'stats': stats})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/vendor-mappings/suggest')
+def suggest_mappings():
+    """유사 SKU 제안 - 상품명 기반 vendor_mappings 검색"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    query = request.args.get('q', '').strip()
+    vendor = request.args.get('vendor', '').strip()
+
+    if not query:
+        return jsonify({'suggestions': []})
+
+    try:
+        sku_suggestions = []
+        with conn.cursor() as cur:
+            # 1차: 같은 거래처 내에서 유사 매핑 검색
+            params = [f'%{query}%', f'%{query}%']
+            sql = '''
+                SELECT vm.id, vm.vendor_name, vm.product_code,
+                       sp.sku_name, sp.id as sku_product_id
+                FROM vendor_mappings vm
+                JOIN sku_products sp ON vm.sku_product_id = sp.id
+                WHERE (vm.product_code ILIKE %s OR sp.sku_name ILIKE %s)
+            '''
+
+            if vendor:
+                sql += ' AND vm.vendor_name = %s'
+                params.append(vendor)
+
+            sql += ' LIMIT 10'
+            cur.execute(sql, params)
+            suggestions = cur.fetchall()
+
+            # 2차: SKU 상품명에서 직접 검색 (매핑이 부족한 경우)
+            if len(suggestions) < 5:
+                cur.execute('''
+                    SELECT id as sku_product_id, sku_name
+                    FROM sku_products
+                    WHERE sku_name ILIKE %s
+                    LIMIT 5
+                ''', (f'%{query}%',))
+                sku_suggestions = cur.fetchall()
+
+        return jsonify({
+            'suggestions': suggestions,
+            'sku_suggestions': [dict(s) for s in sku_suggestions] if len(suggestions) < 5 else []
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================
 # 실행
 # ============================================================
 if __name__ == '__main__':
