@@ -27,8 +27,8 @@
 |------|------|
 | Backend | Python Flask |
 | Database | Railway PostgreSQL (전용) |
-| Frontend | Vanilla JS + Tailwind CSS |
-| Excel | openpyxl (서버), SheetJS (클라이언트) |
+| Frontend | Vanilla JS (ES6+) + Custom CSS |
+| Excel | openpyxl (서버), SheetJS (클라이언트, 변환/다운로드) |
 | 배포 | Vercel |
 
 ---
@@ -37,35 +37,36 @@
 
 ```
 order-management/
-├── app.py                    # Flask 메인 앱
+├── app.py                    # Flask 메인 앱 (API 엔드포인트, DB 연결)
 ├── config.py                 # 환경 설정
 ├── requirements.txt          # Python 의존성
 ├── vercel.json               # Vercel 배포 설정
 │
 ├── services/
 │   ├── __init__.py
-│   └── excel_parser.py       # 엑셀 파싱 로직
+│   └── excel_parser.py       # 엑셀 파싱 로직 (서버사이드)
 │
 ├── templates/
-│   └── index.html            # 메인 페이지
+│   └── index.html            # 메인 페이지 (SPA, 모달 포함)
 │
 ├── static/
 │   ├── css/
 │   │   └── styles.css
 │   └── js/
-│       └── app.js            # 프론트엔드 로직
+│       └── app.es6.js        # 프론트엔드 로직 (변환/확정/주문관리 전체)
 │
 ├── migrations/
-│   └── 001_initial.sql       # 테이블 생성 SQL
+│   ├── 001_initial.sql       # 테이블 생성 SQL
+│   ├── 002_update_schema.sql # 스키마 업데이트
+│   └── 003_add_missing_columns.sql # 누락 컬럼 추가
 │
 ├── .claude/
-│   └── rules/
-│       └── ai-native.md      # AI 네이티브 규칙
+│   ├── decisions.md          # 아키텍처 결정 기록
+│   ├── rules/
+│   │   └── ai-native.md      # AI 네이티브 규칙
+│   └── commands/             # 슬래시 커맨드
 │
-├── scripts/
-│   └── verify_all.js         # 검증 스크립트 (레거시)
-│
-├── index.html                # 레거시 (Firebase 버전)
+├── index.html                # 레거시 (Firebase 버전, 참조용)
 ├── CLAUDE.md                 # 이 파일
 └── .env.example              # 환경변수 예시
 ```
@@ -191,15 +192,18 @@ SECRET_KEY=...
 - Flask 앱 기본 구조
 - API 엔드포인트 구현
 
-### Phase 2: 프론트엔드 연결 (진행 중)
-- 기존 HTML/CSS 유지
-- JS를 Firebase → Flask API 호출로 변경
+### Phase 2: 프론트엔드 연결 ✅
+- JS를 Firebase → Flask API 호출로 변경 완료
+- SheetJS 클라이언트 파싱으로 발주서 변환 구현
+- 변환완료 → 변환확정 → 주문등록 워크플로우 완성
 
-### Phase 3: 데이터 마이그레이션
-- Firebase 데이터 export
-- PostgreSQL로 import
+### Phase 3: 전체 기능 이식 ✅
+- 발주서 변환 (자동 컬럼 매핑, SKU 매칭)
+- 변환확정 (인라인 편집, 빠른매칭, 정렬)
+- 전체주문관리 (상태 토글, 송장 업로드, 일괄 업데이트)
+- 엑셀 다운로드 (B타입, 전체주문, 통합조회)
 
-### Phase 4: 검증 및 전환
+### Phase 4: 검증 및 전환 (진행 중)
 - 모든 기능 테스트
 - Firebase 코드 제거
 

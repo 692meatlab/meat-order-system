@@ -1,16 +1,129 @@
-// ==================== 전역 변수 ====================
+// ==================== 상수 정의 ====================
+        const RESULT_COLUMNS = [
+            { key: 'vendor', name: '발주처', width: '70px' },
+            { key: 'releaseDate', name: '출고요청일', width: '100px' },
+            { key: 'productCode', name: '상품코드', width: '100px' },
+            { key: 'productName', name: '상품명', width: '150px' },
+            { key: 'skuName', name: 'SKU상품명', width: '150px' },
+            { key: 'quantity', name: '수량', width: '50px' },
+            { key: 'receiverName', name: '수령인', width: '70px' },
+            { key: 'receiverPhone', name: '수령인연락처', width: '110px' },
+            { key: 'receiverAddr', name: '수령인주소', width: '200px' },
+            { key: 'memo', name: '배송메모', width: '100px' },
+            { key: 'senderName', name: '발송인', width: '70px' },
+            { key: 'senderPhone', name: '발송인연락처', width: '110px' },
+            { key: 'senderAddr', name: '발송인주소', width: '150px' },
+            { key: 'orderNo', name: '주문번호', width: '100px' },
+            { key: 'deliveryNo', name: '배송번호', width: '100px' },
+            { key: 'note', name: '비고', width: '100px' },
+            { key: 'sourceFile', name: '원본파일', width: '120px' }
+        ];
+
+        const TARGET_COLUMNS = [
+            { key: 'convertedDate', name: '파일변환일', width: '90px' },
+            { key: 'vendor', name: '발주처', width: '70px' },
+            { key: 'releaseDate', name: '출고요청일', width: '100px' },
+            { key: 'productCode', name: '상품코드', width: '100px' },
+            { key: 'skuName', name: 'SKU상품명', width: '150px' },
+            { key: 'packagingComposition', name: '포장&구성', width: '200px' },
+            { key: 'quantity', name: '수량', width: '50px' },
+            { key: 'receiverName', name: '수령인', width: '70px' },
+            { key: 'receiverPhone', name: '수령인연락처', width: '110px' },
+            { key: 'receiverAddr', name: '수령인주소', width: '200px' },
+            { key: 'memo', name: '배송메모', width: '100px' },
+            { key: 'senderName', name: '발송인', width: '70px' },
+            { key: 'senderPhone', name: '발송인연락처', width: '110px' },
+            { key: 'senderAddr', name: '발송인주소', width: '150px' },
+            { key: 'orderNo', name: '주문번호', width: '100px' },
+            { key: 'deliveryNo', name: '배송번호', width: '100px' },
+            { key: 'note', name: '비고', width: '100px' },
+            { key: 'sourceFile', name: '원본파일', width: '120px' }
+        ];
+
+        const ORDER_MANAGEMENT_COLUMNS = [
+            { key: 'registeredDate', name: '등록일', width: '90px' },
+            { key: 'vendor', name: '발주처', width: '70px' },
+            { key: 'releaseDate', name: '출고요청일', width: '100px' },
+            { key: 'skuName', name: 'SKU상품명', width: '150px' },
+            { key: 'quantity', name: '수량', width: '50px' },
+            { key: 'receiverName', name: '수령인', width: '70px' },
+            { key: 'receiverPhone', name: '수령인연락처', width: '110px' },
+            { key: 'receiverAddr', name: '수령인주소', width: '200px' },
+            { key: 'memo', name: '배송메세지', width: '120px' },
+            { key: 'orderNo', name: '주문번호', width: '100px' },
+            { key: 'deliveryNo', name: '배송번호', width: '100px' },
+            { key: 'senderName', name: '발송인', width: '70px' },
+            { key: 'senderPhone', name: '발송인연락처', width: '110px' },
+            { key: 'senderAddr', name: '발송인주소', width: '150px' },
+            { key: 'invoiceNo', name: '송장번호', width: '100px' },
+            { key: '_shipped', name: '출고', width: '70px' },
+            { key: '_paid', name: '결제', width: '70px' },
+            { key: '_invoiceIssued', name: '계산서', width: '70px' },
+            { key: 'unitPrice', name: '단가', width: '80px' },
+            { key: 'note', name: '비고', width: '100px' }
+        ];
+
+        const MAPPING_RULES = {
+            'orderNo': ['주문번호', '주문코드', '오더번호', '오더코드', 'orderno', 'order_no', 'ordercode'],
+            'deliveryNo': ['배송번호', '배송코드', '추가배송', '추가옵션', '옵션번호', '배송순번', 'deliveryno', 'delivery_no'],
+            'productCode': ['상품코드', '상품키', '제품코드', '품목코드', 'sku', 'productcode', 'product_code', 'itemcode', 'productkey', '코드', '품번', '제품번호', '상품번호'],
+            'productName': ['상품명', '품명', '품목', '품목명', '물품', '물품명', '제품명', 'productname', 'product_name', 'itemname', '내용물', '내품', '물건', '상품', '아이템', '제품', '품'],
+            'quantity': ['수량', '주문수량', '상품수', 'qty', 'quantity', '개수', '갯수', '건수', '단위', '박스', 'box', '세트', 'set'],
+            'receiverName': ['수령인', '수취인', '받는분', '받는사람', '수령자', '받는분성명', '수취인명', '성명', '이름', '고객명', '수신자', '수신인', '배송자', '고객', '수령인명', '받는분이름', '수취자', '받으시는분', '받으실분'],
+            'receiverPhone': ['수령인연락처', '수령인휴대폰', '수령인전화', '받는분연락처', '받는분휴대폰', '수취인연락처', '수취인휴대폰', '수령인핸드폰', '휴대전화', '핸드폰', '휴대폰', '연락처', '전화', '폰번호', 'hp', 'tel', '전화번호', '핸드폰번호', '휴대폰번호', '모바일', 'mobile', 'phone', '받는분전화', '수취인전화'],
+            'receiverAddr': ['수령인주소', '받는분주소', '수취인주소', '배송지주소', '배송주소', '배송지', '주소', '도로명주소', '지번주소', '전체주소', '받는곳', '수령지', '수취지', '도착지'],
+            'receiverAddrDetail': ['상세주소', '상세', '주소상세', '나머지주소', '세부주소'],
+            'senderName': ['발송인', '보내는분', '보내는사람', '발신인', '발송자', '송하인', '발송인명', '보내는분이름', '송신자', '송신인'],
+            'senderPhone': ['발송인연락처', '발송인휴대폰', '발송인전화', '보내는분연락처', '보내는분휴대폰', '송하인연락처', '송하인전화', '발신인연락처'],
+            'senderAddr': ['발송인주소', '보내는분주소', '발송지주소', '송하인주소', '발신지', '출발지'],
+            'ordererName': ['주문자', '주문자명', '주문인', '구매자', '구매자명', '주문고객', '결제자', '신청인', '신청자'],
+            'memo': ['배송메모', '배송메세지', '배송메시지', '택배메모', '택배요청', '전달사항', '요청사항', '배송요청', '메모', '특이사항', '요청메모', '배송시요청', '기사메모', '배달메모'],
+            'invoiceNo': ['송장번호', '운송장번호', '운송장', '택배번호', 'invoiceno', '송장', '택배송장', '배송번호'],
+            'note': ['비고', '참고', '기타', '노트', 'note', 'remark', '특기사항', '추가정보'],
+            'releaseDate': ['출고요청일', '출고일', '출고예정일', '출고희망일', '배송요청일', '배송희망일', '발송요청일', '발송희망일', '발송일', '예약출고일', '지정출고일', '출하일', '출하요청일', '배송일', '배송지정일', '희망일', '요청일자', '배송일자', '발송일자']
+        };
+
+        const MAPPING_EXCLUDES = {
+            'receiverAddr': ['우편번호', '우편', 'zip', '일시', '일자', '날짜', '요청', '지시', '배송요청', '배송지시', '요청일', '지시일', '완료', '시간'],
+            'receiverPhone': ['안심번호', '안심', '전화번호_', '_안심'],
+            'quantity': ['금액', '가격', '판매', '공급', '결제'],
+            'productName': ['코드', 'code'],
+            'memo': ['요청일', '지시일', '일자', '일시', '날짜', '출고', '발송']
+        };
+
+        // ==================== 전역 변수 ====================
         let currentUser = null;
+        let currentUserId = null;
         let userList = [];
         let allUsersData = {};
         let skuProducts = [];
         let partsData = {};
+        let partsIdMap = {};
         let packagingData = {};
+        let packagingIdMap = {};
         let vendorMappings = [];
         let calendarData = {};
         let currentYear = new Date().getFullYear();
         let currentMonth = new Date().getMonth();
         let selectedDate = null;
         let editingSkuId = null;
+
+        // 발주서 변환 관련
+        let workbooks = [];
+        let convertedData = [];
+        let confirmedData = [];
+
+        // 전체주문관리 관련
+        let orderManagementData = [];
+
+        // 필터/정렬 상태
+        let confirmedFilters = {};
+        let confirmedSort = { key: 'releaseDate', direction: 'asc' };
+        let orderManagementFilters = {};
+        let orderManagementSort = { key: null, direction: null };
+
+        // 빠른매칭
+        let quickMatchIndex = -1;
 
         // ==================== 초기화 ====================
         document.addEventListener('DOMContentLoaded', function() {
@@ -37,13 +150,17 @@
                 }
 
                 partsData = {};
+                partsIdMap = {};
                 (data.parts || []).forEach(function(p) {
                     partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type };
+                    partsIdMap[p.part_name] = p.id;
                 });
 
                 packagingData = {};
+                packagingIdMap = {};
                 (data.packaging || []).forEach(function(p) {
                     packagingData[p.packaging_name] = p.price;
+                    packagingIdMap[p.packaging_name] = p.id;
                 });
 
                 skuProducts = data.sku_products || [];
@@ -86,8 +203,10 @@
             const res = await fetch('/api/parts-cost');
             const data = await res.json();
             partsData = {};
+            partsIdMap = {};
             (data.parts || []).forEach(p => {
                 partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type };
+                partsIdMap[p.part_name] = p.id;
             });
             renderPartsTable();
         }
@@ -96,8 +215,10 @@
             const res = await fetch('/api/packaging-cost');
             const data = await res.json();
             packagingData = {};
+            packagingIdMap = {};
             (data.packaging || []).forEach(p => {
                 packagingData[p.packaging_name] = p.price;
+                packagingIdMap[p.packaging_name] = p.id;
             });
             renderPackagingTable();
             updatePackagingSelect();
@@ -630,27 +751,74 @@
 
         function showUserPage(pageId, userName, userId) {
             currentUser = userName;
+            currentUserId = userId;
             document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
             document.getElementById(pageId)?.classList.add('active');
 
-            // 사용자 정보 표시
             if (pageId === 'convert') {
                 document.getElementById('convert-user-info').textContent = userName + '님의 발주서 변환';
+                // 변환결과가 있으면 표시
+                if (convertedData.length > 0) {
+                    renderConvertResult();
+                }
             } else if (pageId === 'confirmed') {
                 document.getElementById('confirmed-user-info').textContent = userName + '님의 변환확정 목록';
-                loadUserConfirmed(userId);
+                renderConfirmed();
             } else if (pageId === 'order-management') {
                 document.getElementById('order-user-info').textContent = userName + '님의 전체주문관리';
                 loadUserOrders(userId);
             }
         }
 
-        async function loadUserConfirmed(userId) {
-            // TODO: 사용자별 확정 데이터 로드
+        function loadUserConfirmed(userId) {
+            // 확정 데이터는 클라이언트 메모리(confirmedData)에서 관리
+            renderConfirmed();
         }
 
         async function loadUserOrders(userId) {
-            // TODO: 사용자별 주문 데이터 로드
+            showLoading();
+            try {
+                const dateFrom = document.getElementById('order-date-from')?.value || '';
+                const dateTo = document.getElementById('order-date-to')?.value || '';
+                let url = `/api/orders?user_id=${userId || currentUserId}&limit=500`;
+                if (dateFrom) url += `&date_from=${dateFrom}`;
+                if (dateTo) url += `&date_to=${dateTo}`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+                orderManagementData = (data.orders || []).map(o => ({
+                    _id: o.id,
+                    _selected: false,
+                    registeredDate: o.created_at ? o.created_at.split('T')[0] : '',
+                    vendor: o.vendor_name || '',
+                    releaseDate: o.release_date || '',
+                    productCode: o.product_code || '',
+                    skuName: o.sku_name || '',
+                    productName: o.product_name || '',
+                    quantity: o.quantity || 1,
+                    receiverName: o.recipient || '',
+                    receiverPhone: o.phone || '',
+                    receiverAddr: o.address || '',
+                    memo: o.memo || '',
+                    orderNo: o.order_no || '',
+                    deliveryNo: o.delivery_no || '',
+                    senderName: o.sender_name || '',
+                    senderPhone: o.sender_phone || '',
+                    senderAddr: o.sender_addr || '',
+                    invoiceNo: o.invoice_no || '',
+                    _shipped: o.shipped || false,
+                    _paid: o.paid || false,
+                    _invoiceIssued: o.invoice_issued || false,
+                    unitPrice: o.unit_price || 0,
+                    note: o.note || '',
+                    _bTypeDownloaded: o.b_type_downloaded || false
+                }));
+                renderOrderManagement();
+            } catch (e) {
+                console.error('주문 로드 실패:', e);
+                showToast('주문 데이터 로드 실패', 'error');
+            }
+            hideLoading();
         }
 
         // ==================== 모달 ====================
@@ -813,9 +981,15 @@
 
         async function deletePart(name) {
             if (!confirm(`"${name}" 부위를 삭제하시겠습니까?`)) return;
-            // TODO: 삭제 API 호출
-            showToast('삭제되었습니다.', 'success');
-            await loadPartsData();
+            const id = partsIdMap[name];
+            if (!id) { showToast('삭제할 부위를 찾을 수 없습니다.', 'error'); return; }
+            try {
+                await fetch(`/api/parts-cost/${id}`, { method: 'DELETE' });
+                showToast('삭제되었습니다.', 'success');
+                await loadPartsData();
+            } catch (e) {
+                showToast('삭제 실패', 'error');
+            }
         }
 
         function openAddPackagingModal() {
@@ -855,8 +1029,15 @@
 
         async function deletePackaging(name) {
             if (!confirm(`"${name}" 포장재를 삭제하시겠습니까?`)) return;
-            showToast('삭제되었습니다.', 'success');
-            await loadPackagingData();
+            const id = packagingIdMap[name];
+            if (!id) { showToast('삭제할 포장재를 찾을 수 없습니다.', 'error'); return; }
+            try {
+                await fetch(`/api/packaging-cost/${id}`, { method: 'DELETE' });
+                showToast('삭제되었습니다.', 'success');
+                await loadPackagingData();
+            } catch (e) {
+                showToast('삭제 실패', 'error');
+            }
         }
 
         function openAddSkuModal() {
@@ -1131,8 +1312,18 @@
         }
 
         function downloadIntegratedExcel() {
-            showToast('엑셀 다운로드 준비 중...', 'info');
-            // TODO: 엑셀 다운로드 구현
+            const tableEl = document.getElementById('integrated-table');
+            const table = tableEl?.querySelector('table');
+            if (!table) { showToast('다운로드할 데이터가 없습니다.', 'error'); return; }
+
+            const ws = XLSX.utils.table_to_sheet(table);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '통합조회');
+
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+            XLSX.writeFile(wb, `통합조회_${dateStr}.xlsx`);
+            showToast('엑셀 다운로드 완료', 'success');
         }
 
         function loadVendorMappings() {
@@ -1159,34 +1350,1256 @@
         }
 
         function handleFiles(files) {
-            if (files.length > 0) {
-                const names = Array.from(files).map(f => f.name).join(', ');
-                document.getElementById('file-info').textContent = `선택됨: ${names}`;
-                document.getElementById('file-info').classList.add('show');
-                document.getElementById('btn-convert').disabled = false;
-            }
+            if (files.length === 0) return;
+            workbooks = [];
+            const names = [];
+            let loadedCount = 0;
+
+            Array.from(files).forEach(file => {
+                names.push(file.name);
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const wb = XLSX.read(e.target.result, { type: 'array' });
+                        workbooks.push({ workbook: wb, fileName: file.name });
+                    } catch (err) {
+                        console.error('파일 읽기 오류:', file.name, err);
+                    }
+                    loadedCount++;
+                    if (loadedCount === files.length) {
+                        document.getElementById('file-info').textContent = `선택됨: ${names.join(', ')}`;
+                        document.getElementById('file-info').classList.add('show');
+                        document.getElementById('btn-convert').disabled = false;
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            });
         }
 
         function convertOrders() {
-            showToast('발주서 변환 기능은 개발 중입니다.', 'info');
+            if (workbooks.length === 0) {
+                showToast('먼저 파일을 업로드해주세요.', 'error');
+                return;
+            }
+
+            const selectedVendor = document.getElementById('vendor-name').value.trim();
+            if (!selectedVendor) {
+                showToast('발주처를 선택해주세요.', 'error');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                convertedData = [];
+
+                for (const { workbook, fileName } of workbooks) {
+                    for (const sheetName of workbook.SheetNames) {
+                        const sheet = workbook.Sheets[sheetName];
+                        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                        const headerInfo = findHeaderRow(rawData);
+                        if (!headerInfo) continue;
+
+                        const { headerRowIdx, columns } = headerInfo;
+                        const mapping = autoMapColumns(columns);
+
+                        const dataRows = rawData.slice(headerRowIdx + 1).filter(row =>
+                            row && row.some(cell => cell !== undefined && cell !== null && cell !== '')
+                        );
+
+                        for (const row of dataRows) {
+                            const item = convertRow(row, mapping, selectedVendor, fileName);
+                            if (item) {
+                                const matchedSku = findMatchingSku(item.vendor, item.productCode);
+                                if (matchedSku) {
+                                    item.skuName = matchedSku.sku_name || matchedSku.skuName;
+                                    item._skuMatched = true;
+                                    item._skuProductId = matchedSku.id || matchedSku.sku_product_id;
+                                } else {
+                                    item.skuName = item.productName;
+                                    item._skuMatched = false;
+                                }
+                                convertedData.push(item);
+                            }
+                        }
+                    }
+                }
+
+                if (convertedData.length === 0) {
+                    showToast('변환할 데이터를 찾지 못했습니다. 엑셀 파일 형식을 확인해주세요.', 'error');
+                    hideLoading();
+                    return;
+                }
+
+                renderConvertResult();
+                showToast(`${workbooks.length}개 파일에서 ${convertedData.length}건의 데이터를 변환했습니다.`, 'success');
+
+                // 파일 입력 초기화
+                workbooks = [];
+                fileInput.value = '';
+                document.getElementById('file-info').textContent = '';
+                document.getElementById('file-info').classList.remove('show');
+                document.getElementById('btn-convert').disabled = true;
+            } catch (err) {
+                showToast('변환 중 오류: ' + err.message, 'error');
+                console.error(err);
+            }
+
+            hideLoading();
         }
 
         function confirmConvertedData() {
-            showToast('변환확정 이동 기능은 개발 중입니다.', 'info');
+            const selectedItems = convertedData.filter(item => item._selected);
+            if (selectedItems.length === 0) {
+                showToast('변환확정할 항목을 선택해주세요.', 'error');
+                return;
+            }
+
+            const requiredFields = [
+                { key: 'productName', name: '상품명' },
+                { key: 'quantity', name: '수량' },
+                { key: 'receiverName', name: '수령인' },
+                { key: 'receiverPhone', name: '수령인연락처' },
+                { key: 'receiverAddr', name: '수령인주소' }
+            ];
+
+            const missingItems = [];
+            selectedItems.forEach((item, idx) => {
+                const missingFields = [];
+                requiredFields.forEach(field => {
+                    const value = item[field.key];
+                    if (!value || (typeof value === 'string' && value.trim() === '')) {
+                        missingFields.push(field.name);
+                    }
+                });
+                if (missingFields.length > 0) {
+                    missingItems.push({ index: idx + 1, fields: missingFields });
+                }
+            });
+
+            if (missingItems.length > 0) {
+                const errorMsg = missingItems.slice(0, 5).map(item =>
+                    `${item.index}번째 항목: ${item.fields.join(', ')} 누락`
+                ).join('\n');
+                const moreMsg = missingItems.length > 5 ? `\n...외 ${missingItems.length - 5}건` : '';
+                alert(`필수값이 누락된 항목이 있습니다.\n\n${errorMsg}${moreMsg}\n\n상품명, 수량, 수령인, 수령인연락처, 수령인주소는 필수입니다.`);
+                return;
+            }
+
+            const today = new Date();
+            const convertedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+            selectedItems.forEach(item => {
+                const newItem = { ...item, _selected: true, _id: generateId(), convertedDate };
+                if (!newItem.productCode && newItem.productName) {
+                    newItem.productCode = newItem.productName;
+                }
+                const matchedSku = findMatchingSku(newItem.vendor, newItem.productCode);
+                if (matchedSku) {
+                    newItem.skuName = matchedSku.sku_name || matchedSku.skuName;
+                    newItem._skuMatched = true;
+                    newItem._skuProductId = matchedSku.id || matchedSku.sku_product_id;
+                } else {
+                    newItem.skuName = newItem.productName;
+                    newItem._skuMatched = false;
+                }
+                confirmedData.push(newItem);
+            });
+
+            convertedData = convertedData.filter(item => !item._selected);
+            renderConvertResult();
+            showToast(`${selectedItems.length}건이 변환확정 목록에 추가되었습니다.`, 'success');
+
+            setTimeout(() => {
+                showUserPage('confirmed', currentUser, currentUserId);
+            }, 500);
         }
 
-        function registerOrders() {
-            showToast('주문 등록 기능은 개발 중입니다.', 'info');
+        async function registerOrders() {
+            const selectedItems = confirmedData.filter(item => item._selected);
+            if (selectedItems.length === 0) {
+                showToast('등록할 항목을 선택해주세요.', 'error');
+                return;
+            }
+
+            if (!currentUserId) {
+                showToast('사용자를 먼저 선택해주세요.', 'error');
+                return;
+            }
+
+            showLoading();
+            try {
+                const orders = selectedItems.map(item => {
+                    const skuId = item._skuProductId || null;
+                    return {
+                        user_id: currentUserId,
+                        vendor_name: item.vendor || '',
+                        sku_product_id: skuId,
+                        sku_name: item.skuName || item.productName || '',
+                        product_name: item.productName || '',
+                        product_code: item.productCode || '',
+                        quantity: parseInt(item.quantity) || 1,
+                        recipient: item.receiverName || '',
+                        phone: item.receiverPhone || '',
+                        address: item.receiverAddr || '',
+                        memo: item.memo || '',
+                        release_date: item.releaseDate || null,
+                        order_no: item.orderNo || '',
+                        delivery_no: item.deliveryNo || '',
+                        sender_name: item.senderName || '',
+                        sender_phone: item.senderPhone || '',
+                        sender_addr: item.senderAddr || '',
+                        note: item.note || '',
+                        source_file: item.sourceFile || '',
+                        unit_price: parseInt(item.unitPrice) || 0,
+                        shipped: false,
+                        paid: false,
+                        invoice_issued: false
+                    };
+                });
+
+                const res = await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orders)
+                });
+
+                if (!res.ok) throw new Error('등록 실패');
+
+                confirmedData = confirmedData.filter(item => !item._selected);
+                renderConfirmed();
+                showToast(`${selectedItems.length}건이 전체주문관리에 등록되었습니다.`, 'success');
+            } catch (e) {
+                console.error('주문 등록 실패:', e);
+                showToast('주문 등록 실패: ' + e.message, 'error');
+            }
+            hideLoading();
         }
 
         function downloadConfirmedExcel() {
-            showToast('엑셀 다운로드 기능은 개발 중입니다.', 'info');
+            if (confirmedData.length === 0) {
+                showToast('다운로드할 데이터가 없습니다.', 'error');
+                return;
+            }
+            const selected = confirmedData.filter(item => item._selected);
+            const data = selected.length > 0 ? selected : confirmedData;
+            downloadLogenExcel(data);
+            showToast(`${data.length}건을 B타입 양식으로 다운로드했습니다.`, 'success');
         }
 
         function downloadOrderExcel() {
-            showToast('엑셀 다운로드 기능은 개발 중입니다.', 'info');
+            if (orderManagementData.length === 0) {
+                showToast('다운로드할 데이터가 없습니다.', 'error');
+                return;
+            }
+
+            const headers = [
+                '등록일', '발주처', '출고요청일', '상품코드', 'SKU상품명', '상품명',
+                '수량', '수령인', '수령인연락처', '수령인주소', '송장번호',
+                '출고여부', '결제여부', '계산서발행', '단가', '비고'
+            ];
+
+            const dataRows = orderManagementData.map(item => [
+                item.registeredDate || '', item.vendor || '', item.releaseDate || '',
+                item.productCode || '', item.skuName || '', item.productName || '',
+                item.quantity || '', item.receiverName || '', item.receiverPhone || '',
+                item.receiverAddr || '', item.invoiceNo || '',
+                item._shipped ? '완료' : '미완료', item._paid ? '완료' : '미완료',
+                item._invoiceIssued ? '발행' : '미발행',
+                item.unitPrice || '', item.note || ''
+            ]);
+
+            const wsData = [headers, ...dataRows];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            ws['!cols'] = headers.map(() => ({ wch: 15 }));
+            ws['!cols'][5] = { wch: 30 };
+            ws['!cols'][9] = { wch: 50 };
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '전체주문관리');
+
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+            XLSX.writeFile(wb, `전체주문관리_${dateStr}.xlsx`);
+            showToast(`${orderManagementData.length}건을 다운로드했습니다.`, 'success');
         }
 
-        function bulkUpdateStatus(field, value) {
-            showToast(`상태 업데이트 기능은 개발 중입니다.`, 'info');
+        async function bulkUpdateStatus(field, value) {
+            const selected = orderManagementData.filter(item => item._selected);
+            if (selected.length === 0) {
+                showToast('선택된 항목이 없습니다.', 'error');
+                return;
+            }
+
+            // 필드명 매핑 (API field → JS property)
+            const fieldToKey = { 'shipped': '_shipped', 'paid': '_paid', 'invoice_issued': '_invoiceIssued' };
+            const statusKey = fieldToKey[field] || ('_' + field);
+            const allSet = selected.every(item => item[statusKey]);
+            const newValue = !allSet;
+
+            // DB 업데이트
+            const ids = selected.filter(item => item._id).map(item => item._id);
+            if (ids.length > 0) {
+                try {
+                    await fetch('/api/orders/bulk-update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids, updates: { [field]: newValue } })
+                    });
+                } catch (e) {
+                    console.error('상태 업데이트 실패:', e);
+                }
+            }
+
+            selected.forEach(item => { item[statusKey] = newValue; });
+            renderOrderManagement();
+            const statusText = newValue ? '완료' : '미완료';
+            showToast(`${selected.length}건이 ${statusText} 처리되었습니다.`, 'success');
+        }
+
+        // ==================== 발주서 변환 핵심 함수 ====================
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function findHeaderRow(data) {
+            const keywords = [
+                '수령인', '수취인', '받는분', '받는사람', '수령자', '성명', '이름', '고객명',
+                '연락처', '휴대폰', '핸드폰', '전화', '폰번호', 'hp', 'tel', '전화번호',
+                '주소', '배송지', '배송주소', '도로명',
+                '상품', '품명', '품목', '물품', '제품', '아이템', 'product',
+                '주문', '오더', 'order', '번호',
+                '수량', '개수', 'qty', 'quantity',
+                '발송인', '보내는', '송하인',
+                '배송', '택배', '송장', '운송장', '메모', '요청', '비고'
+            ];
+
+            for (let i = 0; i < Math.min(20, data.length); i++) {
+                const row = data[i];
+                if (!row || row.length < 2) continue;
+
+                let matchCount = 0;
+                const columns = [];
+
+                for (let j = 0; j < row.length; j++) {
+                    const cell = row[j];
+                    if (cell !== undefined && cell !== null && cell !== '') {
+                        const cellStr = String(cell).replace(/[\s\n*]/g, '').toLowerCase();
+                        columns.push({ index: j, name: String(cell).trim(), normalized: cellStr });
+
+                        for (const keyword of keywords) {
+                            if (cellStr.includes(keyword.toLowerCase())) {
+                                matchCount++;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (matchCount >= 2) {
+                    return { headerRowIdx: i, columns };
+                }
+            }
+            return null;
+        }
+
+        function isExcluded(colName, targetKey) {
+            const excludes = MAPPING_EXCLUDES[targetKey];
+            if (!excludes) return false;
+            for (const exclude of excludes) {
+                if (colName.includes(exclude.toLowerCase())) return true;
+            }
+            return false;
+        }
+
+        function autoMapColumns(columns) {
+            const mapping = {};
+            const usedColumns = new Set();
+
+            // Pass 1: 정확한 매칭
+            for (const [targetKey, keywords] of Object.entries(MAPPING_RULES)) {
+                for (const keyword of keywords) {
+                    const keywordLower = keyword.toLowerCase();
+                    for (const col of columns) {
+                        if (usedColumns.has(col.index)) continue;
+                        if (col.normalized === keywordLower && !isExcluded(col.normalized, targetKey)) {
+                            mapping[targetKey] = col.index;
+                            usedColumns.add(col.index);
+                            break;
+                        }
+                    }
+                    if (mapping[targetKey] !== undefined) break;
+                }
+            }
+
+            // Pass 2: startsWith 매칭
+            for (const [targetKey, keywords] of Object.entries(MAPPING_RULES)) {
+                if (mapping[targetKey] !== undefined) continue;
+                for (const keyword of keywords) {
+                    const keywordLower = keyword.toLowerCase();
+                    for (const col of columns) {
+                        if (usedColumns.has(col.index)) continue;
+                        if (col.normalized.startsWith(keywordLower) && !isExcluded(col.normalized, targetKey)) {
+                            mapping[targetKey] = col.index;
+                            usedColumns.add(col.index);
+                            break;
+                        }
+                    }
+                    if (mapping[targetKey] !== undefined) break;
+                }
+            }
+
+            // Pass 3: includes 매칭 (3글자 이상 키워드만)
+            for (const [targetKey, keywords] of Object.entries(MAPPING_RULES)) {
+                if (mapping[targetKey] !== undefined) continue;
+                for (const keyword of keywords) {
+                    const keywordLower = keyword.toLowerCase();
+                    if (keywordLower.length <= 2) continue;
+                    for (const col of columns) {
+                        if (usedColumns.has(col.index)) continue;
+                        if (col.normalized.includes(keywordLower) && !isExcluded(col.normalized, targetKey)) {
+                            mapping[targetKey] = col.index;
+                            usedColumns.add(col.index);
+                            break;
+                        }
+                    }
+                    if (mapping[targetKey] !== undefined) break;
+                }
+            }
+
+            // 주소 컬럼 특별 처리
+            const addressColumns = columns.filter(col =>
+                !usedColumns.has(col.index) &&
+                (col.normalized.includes('주소') || col.normalized.includes('address')) &&
+                !isExcluded(col.normalized, 'receiverAddr')
+            );
+
+            if (mapping['receiverAddr'] === undefined && addressColumns.length === 1) {
+                mapping['receiverAddr'] = addressColumns[0].index;
+                usedColumns.add(addressColumns[0].index);
+            } else if (mapping['receiverAddr'] === undefined && addressColumns.length > 1) {
+                const mainAddr = addressColumns.find(col => !col.normalized.includes('상세'));
+                if (mainAddr) {
+                    mapping['receiverAddr'] = mainAddr.index;
+                    usedColumns.add(mainAddr.index);
+                }
+            }
+
+            // 상세주소 컬럼
+            if (mapping['receiverAddrDetail'] === undefined) {
+                for (const col of columns) {
+                    if (usedColumns.has(col.index)) continue;
+                    if (col.normalized.includes('상세주소') || col.normalized.includes('상세') ||
+                        col.normalized === '주소2' || col.normalized === 'address2') {
+                        mapping['receiverAddrDetail'] = col.index;
+                        usedColumns.add(col.index);
+                        break;
+                    }
+                }
+            }
+
+            // 수령인 옆 연락처 추론
+            if (mapping['receiverName'] !== undefined && mapping['receiverPhone'] === undefined) {
+                const receiverIdx = mapping['receiverName'];
+                for (const col of columns) {
+                    if (col.index === receiverIdx + 1 && !usedColumns.has(col.index)) {
+                        const name = col.normalized;
+                        if (name.includes('휴대') || name.includes('전화') || name.includes('연락') || name.includes('폰')) {
+                            mapping['receiverPhone'] = col.index;
+                            usedColumns.add(col.index);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 상품명 폴백
+            if (mapping['productName'] === undefined) {
+                const giftSetPatterns = ['세트', '호', '선물', '패키지', '구성', '모듬', '종합', '특선', '명품', '프리미엄'];
+                for (const col of columns) {
+                    if (usedColumns.has(col.index)) continue;
+                    for (const pattern of giftSetPatterns) {
+                        if (col.name.includes(pattern)) {
+                            mapping['productName'] = col.index;
+                            usedColumns.add(col.index);
+                            break;
+                        }
+                    }
+                    if (mapping['productName'] !== undefined) break;
+                }
+            }
+
+            return mapping;
+        }
+
+        function convertRow(row, mapping, vendorValue, fileName) {
+            const item = { _selected: true, _id: generateId() };
+
+            for (const target of RESULT_COLUMNS) {
+                if (mapping[target.key] !== undefined) {
+                    let value = row[mapping[target.key]];
+                    if (value !== undefined && value !== null) {
+                        value = String(value).trim();
+                        if (target.key.includes('Phone')) value = formatPhone(value);
+                        if (target.key === 'releaseDate') value = formatDateValue(value);
+                    }
+                    item[target.key] = value || '';
+                } else {
+                    item[target.key] = '';
+                }
+            }
+
+            // 상세주소 병합
+            if (mapping['receiverAddrDetail'] !== undefined) {
+                let detail = row[mapping['receiverAddrDetail']];
+                if (detail !== undefined && detail !== null) {
+                    detail = String(detail).trim();
+                    if (detail && item.receiverAddr) {
+                        item.receiverAddr = item.receiverAddr + ' ' + detail;
+                    } else if (detail && !item.receiverAddr) {
+                        item.receiverAddr = detail;
+                    }
+                }
+            }
+
+            // 주문자 → 발송인 폴백
+            if (!item.senderName && mapping['ordererName'] !== undefined) {
+                let orderer = row[mapping['ordererName']];
+                if (orderer !== undefined && orderer !== null) {
+                    item.senderName = String(orderer).trim();
+                }
+            }
+
+            if (!item.vendor) item.vendor = vendorValue;
+            item.sourceFile = fileName;
+
+            if (item.receiverName || item.productName || item.receiverAddr) {
+                return item;
+            }
+            return null;
+        }
+
+        function formatPhone(phone) {
+            if (!phone) return '';
+            let phoneStr = String(phone).trim();
+            let digits = phoneStr.replace(/\D/g, '');
+
+            if (phoneStr.includes('E') || phoneStr.includes('e')) {
+                try {
+                    const num = parseFloat(phoneStr);
+                    if (!isNaN(num)) digits = Math.round(num).toString();
+                } catch (e) {}
+            }
+
+            if (digits.length === 10 && !digits.startsWith('0')) digits = '0' + digits;
+
+            if (digits.length === 11 && digits.startsWith('01')) {
+                return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7)}`;
+            } else if (digits.length === 10 && digits.startsWith('01')) {
+                return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
+            } else if (digits.length === 10 && digits.startsWith('02')) {
+                return `${digits.slice(0,2)}-${digits.slice(2,6)}-${digits.slice(6)}`;
+            } else if (digits.length === 10) {
+                return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
+            } else if (digits.length === 9 && digits.startsWith('02')) {
+                return `${digits.slice(0,2)}-${digits.slice(2,5)}-${digits.slice(5)}`;
+            } else if (phoneStr.includes('-') && digits.length >= 9) {
+                return phoneStr;
+            }
+            return phoneStr;
+        }
+
+        function formatDateValue(value) {
+            if (!value) return '';
+
+            if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value.trim()))) {
+                const num = Number(value);
+                if (num > 1 && num < 73050) {
+                    const excelEpoch = new Date(1899, 11, 30);
+                    const date = new Date(excelEpoch.getTime() + num * 24 * 60 * 60 * 1000);
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
+            }
+
+            const str = String(value).trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+            if (/^\d{4}\/\d{2}\/\d{2}$/.test(str)) return str.replace(/\//g, '-');
+            if (/^\d{4}\.\d{2}\.\d{2}$/.test(str)) return str.replace(/\./g, '-');
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+                const parts = str.split('/');
+                return `${parts[2]}-${parts[0]}-${parts[1]}`;
+            }
+            if (/^\d{8}$/.test(str)) return `${str.slice(0,4)}-${str.slice(4,6)}-${str.slice(6,8)}`;
+
+            const parsed = new Date(str);
+            if (!isNaN(parsed.getTime())) {
+                return `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}`;
+            }
+            return str;
+        }
+
+        function findMatchingSku(vendor, productCode) {
+            if (!vendor || !productCode) return null;
+            const productCodeClean = String(productCode).trim();
+            // Flask vendorMappings: flat array [{ vendor_name, product_code, product_name, sku_product_id, sku_name }]
+            const mapping = vendorMappings.find(m =>
+                m.vendor_name === vendor && String(m.product_code || '').trim() === productCodeClean
+            );
+            if (mapping && mapping.sku_product_id) {
+                const sku = skuProducts.find(p => p.id === mapping.sku_product_id);
+                return sku || { id: mapping.sku_product_id, sku_name: mapping.sku_name };
+            }
+            return null;
+        }
+
+        // ==================== 변환완료 렌더링 ====================
+        function renderConvertResult() {
+            const resultCard = document.getElementById('convert-result');
+            if (!resultCard) return;
+
+            if (convertedData.length === 0) {
+                resultCard.style.display = 'none';
+                return;
+            }
+
+            resultCard.style.display = 'block';
+
+            const matchedCount = convertedData.filter(item => item._skuMatched).length;
+            const unmatchedCount = convertedData.length - matchedCount;
+            const selectedCount = convertedData.filter(item => item._selected).length;
+
+            document.getElementById('convert-result-summary').innerHTML =
+                `전체 ${convertedData.length}건 | 선택 ${selectedCount}건 | ` +
+                `<span style="color: #27ae60;">매칭 ${matchedCount}</span> | ` +
+                `<span style="color: ${unmatchedCount > 0 ? '#e74c3c' : '#666'};">미매칭 ${unmatchedCount}</span>`;
+
+            const tableContainer = document.getElementById('convert-result-table');
+            tableContainer.innerHTML = buildConvertTable(convertedData, RESULT_COLUMNS, 'result');
+        }
+
+        function buildConvertTable(data, columns, tableType) {
+            let html = '<table><thead><tr>';
+            html += '<th><input type="checkbox" onchange="toggleAllRows(\'' + tableType + '\', this.checked)" checked></th>';
+            html += '<th>#</th>';
+            columns.forEach(c => { html += `<th>${escapeHtml(c.name)}</th>`; });
+            html += '</tr></thead><tbody>';
+
+            data.forEach((item, idx) => {
+                html += '<tr>';
+                html += `<td><input type="checkbox" ${item._selected ? 'checked' : ''} onchange="handleRowToggle('${tableType}', ${idx})"></td>`;
+                html += `<td>${idx + 1}</td>`;
+
+                columns.forEach(col => {
+                    const value = escapeHtml(item[col.key] || '');
+                    if (col.key === 'skuName') {
+                        if (!item._skuMatched) {
+                            html += `<td style="min-width:150px;"><span style="background:#fff3cd;color:#856404;padding:2px 6px;border-radius:4px;font-size:11px;">미매칭</span>`;
+                            html += `<div style="font-size:11px;color:#666;margin-top:2px;">${escapeHtml(item.productName || '')}</div></td>`;
+                        } else {
+                            html += `<td style="min-width:150px;"><span style="background:#d4edda;color:#155724;padding:2px 6px;border-radius:4px;font-size:11px;">매칭</span> ${value}`;
+                            html += `<div style="font-size:11px;color:#888;margin-top:2px;">${escapeHtml(item.productName || '')}</div></td>`;
+                        }
+                    } else if (col.key === 'vendor') {
+                        html += `<td><span style="background:#e3f2fd;color:#1565c0;padding:2px 6px;border-radius:4px;font-size:11px;">${value || '-'}</span></td>`;
+                    } else {
+                        html += `<td><input type="text" value="${value}" style="min-width:${col.width};border:1px solid #eee;padding:4px 6px;border-radius:4px;font-size:12px;" onchange="handleCellChange('${tableType}', ${idx}, '${col.key}', this.value)"></td>`;
+                    }
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function toggleAllRows(tableType, checked) {
+            const data = tableType === 'result' ? convertedData : confirmedData;
+            data.forEach(item => { item._selected = checked; });
+            if (tableType === 'result') renderConvertResult();
+            else renderConfirmed();
+        }
+
+        function handleRowToggle(tableType, idx) {
+            if (tableType === 'result') {
+                convertedData[idx]._selected = !convertedData[idx]._selected;
+                renderConvertResult();
+            } else if (tableType === 'confirmed') {
+                confirmedData[idx]._selected = !confirmedData[idx]._selected;
+                renderConfirmed();
+            }
+        }
+
+        function handleCellChange(tableType, idx, key, value) {
+            if (tableType === 'result') {
+                convertedData[idx][key] = value;
+            } else if (tableType === 'confirmed') {
+                confirmedData[idx][key] = value;
+            }
+        }
+
+        // ==================== 변환확정 렌더링 ====================
+        function renderConfirmed() {
+            const badge = document.getElementById('confirmed-badge');
+            const summary = document.getElementById('confirmed-summary');
+            const table = document.getElementById('confirmed-table');
+            if (!table) return;
+
+            if (badge) badge.textContent = confirmedData.length;
+
+            if (confirmedData.length === 0) {
+                if (summary) summary.innerHTML = '';
+                table.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">확정된 데이터가 없습니다.</p>';
+                return;
+            }
+
+            const selectedCount = confirmedData.filter(item => item._selected).length;
+            const matchedCount = confirmedData.filter(item => item._skuMatched).length;
+            const unmatchedCount = confirmedData.length - matchedCount;
+
+            if (summary) {
+                summary.innerHTML = `
+                    <div class="summary-item"><span class="label">전체:</span><span class="value">${confirmedData.length}건</span></div>
+                    <div class="summary-item"><span class="label">선택:</span><span class="value">${selectedCount}건</span></div>
+                    <div class="summary-item"><span class="label">매칭:</span><span class="value" style="color:#27ae60;">${matchedCount}</span></div>
+                    ${unmatchedCount > 0 ? `<div class="summary-item"><span class="label">미매칭:</span><span class="value" style="color:#e74c3c;">${unmatchedCount}</span></div>` : ''}
+                `;
+            }
+
+            // 필터/정렬 적용
+            const filteredData = getFilteredConfirmedData();
+            table.innerHTML = buildConfirmedTable(filteredData);
+        }
+
+        function getFilteredConfirmedData() {
+            let data = [...confirmedData];
+
+            Object.keys(confirmedFilters).forEach(key => {
+                const filterValues = confirmedFilters[key];
+                if (filterValues && filterValues.length > 0) {
+                    data = data.filter(item => filterValues.includes(item[key] || ''));
+                }
+            });
+
+            if (confirmedSort.key && confirmedSort.direction) {
+                data.sort((a, b) => {
+                    const aVal = a[confirmedSort.key] || '';
+                    const bVal = b[confirmedSort.key] || '';
+                    if (confirmedSort.key === 'releaseDate') {
+                        if (!aVal && bVal) return -1;
+                        if (aVal && !bVal) return 1;
+                    }
+                    let comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+                    return confirmedSort.direction === 'desc' ? -comparison : comparison;
+                });
+            }
+
+            return data;
+        }
+
+        function buildConfirmedTable(data) {
+            const columns = TARGET_COLUMNS;
+            let html = '<table><thead><tr>';
+            html += '<th><input type="checkbox" onchange="toggleAllRows(\'confirmed\', this.checked)" checked></th>';
+            html += '<th>#</th>';
+            columns.forEach(c => {
+                html += `<th style="cursor:pointer;" onclick="toggleConfirmedSort('${c.key}')">${escapeHtml(c.name)}`;
+                if (confirmedSort.key === c.key) {
+                    html += confirmedSort.direction === 'asc' ? ' ▲' : ' ▼';
+                }
+                html += '</th>';
+            });
+            html += '</tr></thead><tbody>';
+
+            data.forEach((item, idx) => {
+                const origIdx = confirmedData.indexOf(item);
+                html += '<tr>';
+                html += `<td><input type="checkbox" ${item._selected ? 'checked' : ''} onchange="handleRowToggle('confirmed', ${origIdx})"></td>`;
+                html += `<td>${idx + 1}</td>`;
+
+                columns.forEach(col => {
+                    const value = escapeHtml(item[col.key] || '');
+                    if (col.key === 'skuName') {
+                        if (!item._skuMatched) {
+                            html += `<td><button class="btn btn-danger btn-small" onclick="openQuickMatchModal(${origIdx})" style="padding:2px 8px;font-size:11px;">미매칭</button>`;
+                            html += `<div style="font-size:11px;color:#666;margin-top:2px;">${escapeHtml(item.productName || '')}</div></td>`;
+                        } else {
+                            html += `<td><span style="background:#d4edda;color:#155724;padding:2px 6px;border-radius:4px;font-size:11px;">매칭</span> ${value}</td>`;
+                        }
+                    } else if (col.key === 'packagingComposition') {
+                        let packCompText = '-';
+                        let sku = null;
+                        if (item._skuProductId) sku = skuProducts.find(p => p.id === item._skuProductId);
+                        if (!sku && item.skuName) sku = skuProducts.find(p => p.sku_name === item.skuName);
+                        if (sku) {
+                            const packagingName = sku.packaging || '';
+                            const compText = (sku.compositions || []).map(c => `${c.part_name}${c.weight}g`).join(',');
+                            packCompText = packagingName ? `[${packagingName}] ${compText}` : compText || '-';
+                        }
+                        html += `<td style="font-size:12px;color:#555;" title="${escapeHtml(packCompText)}">${escapeHtml(packCompText)}</td>`;
+                    } else if (col.key === 'convertedDate') {
+                        html += `<td style="font-size:12px;color:#666;">${value || '-'}</td>`;
+                    } else if (col.key === 'vendor') {
+                        html += `<td><span style="background:#e3f2fd;color:#1565c0;padding:2px 6px;border-radius:4px;font-size:11px;">${value || '-'}</span></td>`;
+                    } else {
+                        html += `<td><input type="text" value="${value}" style="min-width:${col.width};border:1px solid #eee;padding:4px 6px;border-radius:4px;font-size:12px;" onchange="handleCellChange('confirmed', ${origIdx}, '${col.key}', this.value)"></td>`;
+                    }
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function toggleConfirmedSort(key) {
+            if (confirmedSort.key === key) {
+                if (confirmedSort.direction === 'asc') confirmedSort.direction = 'desc';
+                else if (confirmedSort.direction === 'desc') confirmedSort = { key: null, direction: null };
+                else confirmedSort = { key, direction: 'asc' };
+            } else {
+                confirmedSort = { key, direction: 'asc' };
+            }
+            renderConfirmed();
+        }
+
+        // ==================== 전체주문관리 렌더링 ====================
+        function renderOrderManagement() {
+            const badge = document.getElementById('order-badge');
+            const summary = document.getElementById('order-summary');
+            const table = document.getElementById('order-table');
+            if (!table) return;
+
+            if (badge) badge.textContent = orderManagementData.length;
+
+            if (orderManagementData.length === 0) {
+                if (summary) summary.innerHTML = '';
+                table.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">등록된 주문이 없습니다.</p>';
+                return;
+            }
+
+            const selectedCount = orderManagementData.filter(item => item._selected).length;
+            const shippedCount = orderManagementData.filter(item => item._shipped).length;
+            const paidCount = orderManagementData.filter(item => item._paid).length;
+
+            if (summary) {
+                summary.innerHTML = `
+                    <div class="summary-item"><span class="label">전체:</span><span class="value">${orderManagementData.length}건</span></div>
+                    <div class="summary-item"><span class="label">선택:</span><span class="value">${selectedCount}건</span></div>
+                    <div class="summary-item"><span class="label">출고완료:</span><span class="value" style="color:#27ae60;">${shippedCount}</span></div>
+                    <div class="summary-item"><span class="label">입금완료:</span><span class="value" style="color:#3498db;">${paidCount}</span></div>
+                `;
+            }
+
+            // 필터/정렬 적용
+            let data = [...orderManagementData];
+
+            Object.keys(orderManagementFilters).forEach(key => {
+                const filterValues = orderManagementFilters[key];
+                if (filterValues && filterValues.length > 0) {
+                    data = data.filter(item => {
+                        const val = getOrderDisplayValue(item, key);
+                        return filterValues.includes(val);
+                    });
+                }
+            });
+
+            if (orderManagementSort.key && orderManagementSort.direction) {
+                data.sort((a, b) => {
+                    const aVal = getOrderDisplayValue(a, orderManagementSort.key);
+                    const bVal = getOrderDisplayValue(b, orderManagementSort.key);
+                    let cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+                    return orderManagementSort.direction === 'desc' ? -cmp : cmp;
+                });
+            }
+
+            table.innerHTML = buildOrderManagementTable(data);
+        }
+
+        function getOrderDisplayValue(item, key) {
+            if (key === '_shipped') return item._shipped ? '출고' : '미출고';
+            if (key === '_paid') return item._paid ? '입금' : '미입금';
+            if (key === '_invoiceIssued') return item._invoiceIssued ? '발행' : '미발행';
+            if (key === 'unitPrice') return item.unitPrice ? String(item.unitPrice) : '';
+            return item[key] || '';
+        }
+
+        function buildOrderManagementTable(data) {
+            const columns = ORDER_MANAGEMENT_COLUMNS;
+            let html = '<table><thead><tr>';
+            html += '<th><input type="checkbox" onchange="orderToggleAll(this.checked)"></th>';
+            html += '<th>#</th>';
+            columns.forEach(c => {
+                html += `<th style="cursor:pointer;" onclick="toggleOrderSort('${c.key}')">${escapeHtml(c.name)}`;
+                if (orderManagementSort.key === c.key) {
+                    html += orderManagementSort.direction === 'asc' ? ' ▲' : ' ▼';
+                }
+                html += '</th>';
+            });
+            html += '</tr></thead><tbody>';
+
+            data.forEach((item, idx) => {
+                const origIdx = orderManagementData.indexOf(item);
+                html += '<tr>';
+                html += `<td><input type="checkbox" ${item._selected ? 'checked' : ''} onchange="handleOrderRowToggle(${origIdx})"></td>`;
+                html += `<td>${idx + 1}</td>`;
+
+                columns.forEach(col => {
+                    if (col.key === '_shipped') {
+                        html += `<td><span class="status-badge ${item._shipped ? 'shipped' : 'not-shipped'}" style="cursor:pointer;" onclick="toggleOrderStatus(${origIdx}, '_shipped')">${item._shipped ? '출고' : '미출고'}</span></td>`;
+                    } else if (col.key === '_paid') {
+                        html += `<td><span class="status-badge ${item._paid ? 'paid' : 'not-paid'}" style="cursor:pointer;" onclick="toggleOrderStatus(${origIdx}, '_paid')">${item._paid ? '입금' : '미입금'}</span></td>`;
+                    } else if (col.key === '_invoiceIssued') {
+                        const issued = item._invoiceIssued;
+                        html += `<td><span class="status-badge ${issued ? 'shipped' : 'not-shipped'}" style="cursor:pointer;" onclick="toggleOrderStatus(${origIdx}, '_invoiceIssued')">${issued ? '발행' : '미발행'}</span></td>`;
+                    } else if (col.key === 'invoiceNo') {
+                        const inv = escapeHtml(item.invoiceNo || '');
+                        html += `<td><input type="text" value="${inv}" style="min-width:100px;border:1px solid #eee;padding:4px 6px;border-radius:4px;font-size:12px;" onchange="handleOrderCellChange(${origIdx}, 'invoiceNo', this.value)"></td>`;
+                    } else if (col.key === 'unitPrice') {
+                        const price = item.unitPrice || '';
+                        html += `<td><input type="number" value="${price}" style="min-width:80px;border:1px solid #eee;padding:4px 6px;border-radius:4px;font-size:12px;" onchange="handleOrderCellChange(${origIdx}, 'unitPrice', this.value)"></td>`;
+                    } else if (col.key === 'vendor') {
+                        html += `<td><span style="background:#e3f2fd;color:#1565c0;padding:2px 6px;border-radius:4px;font-size:11px;">${escapeHtml(item.vendor || '-')}</span></td>`;
+                    } else {
+                        const value = escapeHtml(item[col.key] || '');
+                        html += `<td><input type="text" value="${value}" style="min-width:${col.width};border:1px solid #eee;padding:4px 6px;border-radius:4px;font-size:12px;" onchange="handleOrderCellChange(${origIdx}, '${col.key}', this.value)"></td>`;
+                    }
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function orderToggleAll(checked) {
+            orderManagementData.forEach(item => { item._selected = checked; });
+            renderOrderManagement();
+        }
+
+        function handleOrderRowToggle(idx) {
+            orderManagementData[idx]._selected = !orderManagementData[idx]._selected;
+            renderOrderManagement();
+        }
+
+        async function handleOrderCellChange(idx, key, value) {
+            orderManagementData[idx][key] = value;
+
+            if (key === 'invoiceNo' && value && value.trim() !== '') {
+                orderManagementData[idx]._shipped = true;
+                renderOrderManagement();
+            }
+
+            // DB 업데이트
+            const id = orderManagementData[idx]._id;
+            if (id) {
+                try {
+                    await fetch(`/api/orders/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ [key === 'unitPrice' ? 'unit_price' : key === 'invoiceNo' ? 'invoice_no' : key]: value })
+                    });
+                } catch (e) {
+                    console.error('셀 업데이트 실패:', e);
+                }
+            }
+        }
+
+        async function toggleOrderStatus(idx, statusKey) {
+            orderManagementData[idx][statusKey] = !orderManagementData[idx][statusKey];
+            renderOrderManagement();
+
+            const id = orderManagementData[idx]._id;
+            if (id) {
+                const fieldMapping = { '_shipped': 'shipped', '_paid': 'paid', '_invoiceIssued': 'invoice_issued' };
+                    const apiField = fieldMapping[statusKey] || statusKey.replace('_', '');
+                try {
+                    await fetch(`/api/orders/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ [apiField]: orderManagementData[idx][statusKey] })
+                    });
+                } catch (e) {
+                    console.error('상태 업데이트 실패:', e);
+                }
+            }
+        }
+
+        function toggleOrderSort(key) {
+            if (orderManagementSort.key === key) {
+                if (orderManagementSort.direction === 'asc') orderManagementSort.direction = 'desc';
+                else if (orderManagementSort.direction === 'desc') orderManagementSort = { key: null, direction: null };
+                else orderManagementSort = { key, direction: 'asc' };
+            } else {
+                orderManagementSort = { key, direction: 'asc' };
+            }
+            renderOrderManagement();
+        }
+
+        // ==================== B타입 엑셀 다운로드 ====================
+        function downloadLogenExcel(data) {
+            const logenHeaders = [
+                'SKU상품명', '수량', '수령인', '수령인연락처', '수령인주소',
+                '배송메모', '주문번호', '발송인', '발송인연락처', '발송인주소', '배송번호'
+            ];
+
+            const logenData = data.map(item => [
+                item.skuName || item.productName || '',
+                item.quantity || 1,
+                item.receiverName || '',
+                item.receiverPhone || '',
+                item.receiverAddr || '',
+                item.memo || '',
+                item.orderNo || '',
+                item.senderName || '',
+                item.senderPhone || '',
+                item.senderAddr || '',
+                item.deliveryNo || ''
+            ]);
+
+            const wsData = [logenHeaders, ...logenData];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            ws['!cols'] = [
+                { wch: 30 }, { wch: 8 }, { wch: 12 }, { wch: 15 }, { wch: 50 },
+                { wch: 25 }, { wch: 20 }, { wch: 12 }, { wch: 15 }, { wch: 40 }, { wch: 15 }
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'B타입');
+
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+            XLSX.writeFile(wb, `B타입_${dateStr}_${data.length}건.xlsx`);
+        }
+
+        // ==================== 빠른매칭 모달 ====================
+        function openQuickMatchModal(idx) {
+            quickMatchIndex = idx;
+            const item = confirmedData[idx];
+            const modal = document.getElementById('quick-match-modal');
+            if (!modal) return;
+
+            document.getElementById('quick-match-vendor').textContent = item.vendor || '-';
+            document.getElementById('quick-match-product-code').textContent = item.productCode || '-';
+            document.getElementById('quick-match-product-name').textContent = item.productName || '-';
+
+            const select = document.getElementById('quick-match-sku-select');
+            select.innerHTML = '<option value="">SKU 상품을 선택하세요</option>';
+            skuProducts.forEach(sku => {
+                const option = document.createElement('option');
+                option.value = sku.id;
+                option.textContent = `${sku.sku_name} (${(sku.selling_price || 0).toLocaleString()}원)`;
+                select.appendChild(option);
+            });
+
+            document.getElementById('quick-match-save-mapping').checked = true;
+            modal.classList.add('show');
+        }
+
+        function closeQuickMatchModal() {
+            document.getElementById('quick-match-modal')?.classList.remove('show');
+            quickMatchIndex = -1;
+        }
+
+        async function applyQuickMatch() {
+            if (quickMatchIndex < 0) return;
+            const skuId = document.getElementById('quick-match-sku-select').value;
+            if (!skuId) {
+                showToast('SKU 상품을 선택해주세요.', 'error');
+                return;
+            }
+
+            const sku = skuProducts.find(p => p.id === parseInt(skuId));
+            if (!sku) { showToast('SKU를 찾을 수 없습니다.', 'error'); return; }
+
+            const item = confirmedData[quickMatchIndex];
+            item.skuName = sku.sku_name;
+            item._skuMatched = true;
+            item._skuProductId = sku.id;
+
+            // 같은 발주처+상품코드의 모든 항목에 적용
+            confirmedData.forEach(d => {
+                if (d.vendor === item.vendor && d.productCode === item.productCode && !d._skuMatched) {
+                    d.skuName = sku.sku_name;
+                    d._skuMatched = true;
+                    d._skuProductId = sku.id;
+                }
+            });
+
+            // 매핑 저장 옵션
+            const saveMapping = document.getElementById('quick-match-save-mapping').checked;
+            if (saveMapping && item.vendor && item.productCode) {
+                try {
+                    await fetch('/api/vendor-mappings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            vendor_name: item.vendor,
+                            product_code: item.productCode,
+                            product_name: item.productName || '',
+                            sku_product_id: sku.id
+                        })
+                    });
+                    await loadVendorMappingsAll();
+                } catch (e) {
+                    console.error('매핑 저장 실패:', e);
+                }
+            }
+
+            closeQuickMatchModal();
+            renderConfirmed();
+            showToast(`"${sku.sku_name}"으로 매칭되었습니다.`, 'success');
+        }
+
+        // ==================== 송장 업로드 ====================
+        function handleInvoiceUpload() {
+            const input = document.getElementById('invoice-file-input');
+            const file = input?.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const workbook = XLSX.read(e.target.result, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                    if (data.length < 2) {
+                        showToast('엑셀 파일에 데이터가 없습니다.', 'error');
+                        input.value = '';
+                        return;
+                    }
+
+                    // 헤더 탐색
+                    const HEADER_KEYWORDS = ['송장번호', '운송장번호', '송장', '운송장', '주문번호', '수하인', '송하인'];
+                    let headerRowIdx = -1;
+                    let headers = [];
+
+                    for (let i = 0; i < Math.min(20, data.length); i++) {
+                        const row = data[i];
+                        if (!row || row.length === 0) continue;
+                        const rowText = row.map(c => String(c || '').trim().toLowerCase()).join(' ');
+                        const matchCount = HEADER_KEYWORDS.filter(kw => rowText.includes(kw)).length;
+                        if (matchCount >= 2) {
+                            headerRowIdx = i;
+                            headers = row.map(h => String(h || '').trim().toLowerCase());
+                            break;
+                        }
+                    }
+
+                    if (headerRowIdx === -1) {
+                        showToast('헤더 행을 찾을 수 없습니다.', 'error');
+                        input.value = '';
+                        return;
+                    }
+
+                    // 컬럼 인덱스 탐색
+                    let invoiceColIdx = -1, orderNoColIdx = -1, deliveryNoColIdx = -1;
+                    let receiverColIdx = -1, senderColIdx = -1;
+
+                    for (let i = 0; i < headers.length; i++) {
+                        const h = headers[i];
+                        if (invoiceColIdx === -1 && ['송장번호', '운송장번호', '운송장', '송장'].some(k => h.includes(k))) {
+                            invoiceColIdx = i;
+                        }
+                        if (orderNoColIdx === -1 && ['주문번호', '고객주문번호'].some(k => h.includes(k))) {
+                            orderNoColIdx = i;
+                        }
+                        if (deliveryNoColIdx === -1 && !['송장', '운송장'].some(k => h.includes(k)) &&
+                            ['추가옵션', '배송번호', '고객배송번호'].some(k => h.includes(k))) {
+                            deliveryNoColIdx = i;
+                        }
+                        if (receiverColIdx === -1 && ['수하인', '받는분', '수령인', '수취인'].some(k => h.includes(k)) &&
+                            !h.includes('주소') && !h.includes('연락') && !h.includes('전화')) {
+                            receiverColIdx = i;
+                        }
+                        if (senderColIdx === -1 && ['송하인', '보내는분', '발송인'].some(k => h.includes(k)) &&
+                            !h.includes('주소') && !h.includes('연락') && !h.includes('전화')) {
+                            senderColIdx = i;
+                        }
+                    }
+
+                    if (invoiceColIdx === -1) {
+                        showToast('송장번호 컬럼을 찾을 수 없습니다.', 'error');
+                        input.value = '';
+                        return;
+                    }
+
+                    // 매칭
+                    let matchedCount = 0;
+                    for (let i = headerRowIdx + 1; i < data.length; i++) {
+                        const row = data[i];
+                        const invoiceNo = String(row[invoiceColIdx] || '').trim();
+                        if (!invoiceNo) continue;
+
+                        const orderNo = orderNoColIdx >= 0 ? String(row[orderNoColIdx] || '').trim() : '';
+                        const deliveryNo = deliveryNoColIdx >= 0 ? String(row[deliveryNoColIdx] || '').trim() : '';
+                        const receiverName = receiverColIdx >= 0 ? String(row[receiverColIdx] || '').trim() : '';
+                        const senderName = senderColIdx >= 0 ? String(row[senderColIdx] || '').trim() : '';
+
+                        for (const order of orderManagementData) {
+                            if (order.invoiceNo) continue;
+
+                            // 주문번호 매칭
+                            if (orderNo && order.orderNo && order.orderNo === orderNo) {
+                                if (!deliveryNo || !order.deliveryNo || order.deliveryNo === deliveryNo) {
+                                    order.invoiceNo = invoiceNo;
+                                    order._shipped = true;
+                                    matchedCount++;
+                                    break;
+                                }
+                            }
+
+                            // 수령인+발송인 매칭
+                            if (!orderNo && receiverName && senderName) {
+                                const orderReceiver = (order.receiverName || '').replace('님', '').trim();
+                                const excelReceiver = receiverName.replace('님', '').trim();
+                                const orderSender = (order.senderName || '').trim();
+                                const excelSender = senderName.replace('님', '').trim();
+
+                                if (orderReceiver === excelReceiver && orderSender === excelSender) {
+                                    order.invoiceNo = invoiceNo;
+                                    order._shipped = true;
+                                    matchedCount++;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // DB에 업데이트
+                    if (matchedCount > 0) {
+                        const matchedOrders = orderManagementData.filter(o => o.invoiceNo && o._id);
+                        const ids = matchedOrders.map(o => o._id);
+                        const updates = {};
+                        matchedOrders.forEach(o => {
+                            updates[o._id] = { invoice_no: o.invoiceNo, shipped: true };
+                        });
+
+                        // bulk update로 저장
+                        try {
+                            for (const o of matchedOrders) {
+                                await fetch(`/api/orders/${o._id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ invoice_no: o.invoiceNo, shipped: true })
+                                });
+                            }
+                        } catch (e) {
+                            console.error('송장 업데이트 실패:', e);
+                        }
+                    }
+
+                    renderOrderManagement();
+                    showToast(`${matchedCount}건의 송장번호가 매칭되었습니다.`, matchedCount > 0 ? 'success' : 'info');
+                    input.value = '';
+                } catch (err) {
+                    showToast('송장 파일 처리 오류: ' + err.message, 'error');
+                    input.value = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
         }

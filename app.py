@@ -981,6 +981,8 @@ def get_orders():
 
     user_id = request.args.get('user_id', type=int)
     status = request.args.get('status')
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
     limit = request.args.get('limit', type=int, default=500)
 
     try:
@@ -1001,7 +1003,15 @@ def get_orders():
                 query += ' AND o.status = %s'
                 params.append(status)
 
-            query += ' ORDER BY o.created_at DESC LIMIT %s'
+            if date_from:
+                query += ' AND o.release_date >= %s'
+                params.append(date_from)
+
+            if date_to:
+                query += ' AND o.release_date <= %s'
+                params.append(date_to)
+
+            query += ' ORDER BY o.release_date DESC, o.created_at DESC LIMIT %s'
             params.append(limit)
 
             cur.execute(query, params)
@@ -1032,8 +1042,12 @@ def create_orders():
                 cur.execute('''
                     INSERT INTO orders (
                         user_id, order_date, vendor_name, product_name, sku_name,
-                        quantity, recipient, phone, address, memo, status, release_date
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        quantity, recipient, phone, address, memo, status, release_date,
+                        delivery_no, product_code, unit_price, note, source_file,
+                        invoice_no, sender_name, sender_phone, sender_addr, order_no,
+                        shipped, paid, invoice_issued
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                              %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     user_id,
@@ -1046,8 +1060,21 @@ def create_orders():
                     order.get('phone'),
                     order.get('address'),
                     order.get('memo'),
-                    order.get('status', 'pending'),
-                    order.get('release_date')
+                    order.get('status', 'registered'),
+                    order.get('release_date'),
+                    order.get('delivery_no'),
+                    order.get('product_code'),
+                    order.get('unit_price', 0),
+                    order.get('note'),
+                    order.get('source_file'),
+                    order.get('invoice_no'),
+                    order.get('sender_name'),
+                    order.get('sender_phone'),
+                    order.get('sender_addr'),
+                    order.get('order_no'),
+                    order.get('shipped', False),
+                    order.get('paid', False),
+                    order.get('invoice_issued', False)
                 ))
                 created.append(cur.fetchone()['id'])
             conn.commit()
@@ -1086,7 +1113,16 @@ def update_order(order_id):
                 'paid': 'paid',
                 'invoice_issued': 'invoice_issued',
                 'invoice_no': 'invoice_no',
-                'release_date': 'release_date'
+                'release_date': 'release_date',
+                'delivery_no': 'delivery_no',
+                'product_code': 'product_code',
+                'unit_price': 'unit_price',
+                'note': 'note',
+                'source_file': 'source_file',
+                'sender_name': 'sender_name',
+                'sender_phone': 'sender_phone',
+                'sender_addr': 'sender_addr',
+                'order_no': 'order_no'
             }
 
             for key, col in field_map.items():
@@ -1123,7 +1159,7 @@ def bulk_update_orders():
     if not order_ids:
         return jsonify({'error': 'Order IDs are required'}), 400
 
-    allowed_fields = ['status', 'shipped', 'paid', 'invoice_issued', 'memo', 'release_date']
+    allowed_fields = ['status', 'shipped', 'paid', 'invoice_issued', 'memo', 'release_date', 'invoice_no', 'unit_price', 'note']
 
     try:
         with conn.cursor() as cur:

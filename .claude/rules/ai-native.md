@@ -12,7 +12,7 @@
 1. ESLint 체크 → JS 문법/스타일 검증
 2. HTML 유효성 → 구조 검증
 3. 브라우저 테스트 → 기능 동작 확인
-4. Firebase 연결 → 데이터 저장/로드 확인
+4. Flask API 연결 → PostgreSQL 데이터 저장/로드 확인
 ```
 
 ### 검증 통과 = 배포 가능
@@ -76,7 +76,7 @@
 
 ### 데이터 저장 테스트
 ```
-□ Firebase 저장 확인
+□ PostgreSQL 저장 확인 (Flask API 경유)
 □ 새로고침 후 데이터 유지
 □ 다른 사용자 데이터 분리
 ```
@@ -124,32 +124,22 @@ try {
 
 ---
 
-## 5. Firebase 규칙
+## 5. PostgreSQL + Flask API 규칙
 
-### 데이터 구조 변경 시
+### DB 스키마 변경 시
 ```
-1. 기존 데이터 백업 (export)
-2. 마이그레이션 스크립트 작성
-3. 테스트 환경에서 먼저 적용
-4. 프로덕션 적용
+1. migrations/ 폴더에 SQL 파일 추가
+2. Railway DB에서 직접 실행 전 로컬 확인
+3. IF NOT EXISTS 사용하여 안전한 마이그레이션
+4. 기존 데이터 호환성 확인
 ```
 
-### 보안 규칙 체크
-```javascript
-// ⚠️ 현재: 클라이언트에서 직접 접근
-// 보안 규칙으로 최소한의 보호 필요
-
-// Firebase 보안 규칙 예시
-{
-  "rules": {
-    "users": {
-      "$userId": {
-        ".read": "auth != null",
-        ".write": "auth != null && auth.uid == $userId"
-      }
-    }
-  }
-}
+### API 추가/변경 시
+```python
+# app.py에 추가
+# 에러 처리: try/except + conn.rollback()
+# 라우트: RESTful 패턴 (/api/리소스)
+# 응답: jsonify로 JSON 반환
 ```
 
 ---
