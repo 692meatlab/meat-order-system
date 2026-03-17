@@ -33,7 +33,13 @@ def app(mock_db):
         from app import app as flask_app
         flask_app.config['TESTING'] = True
 
-        with patch('app.get_db', return_value=mock_conn):
+        # app.py와 모든 Blueprint의 get_db를 패치
+        with patch('app.get_db', return_value=mock_conn), \
+             patch('routes.users.get_db', return_value=mock_conn), \
+             patch('routes.sku.get_db', return_value=mock_conn), \
+             patch('routes.vendors.get_db', return_value=mock_conn), \
+             patch('routes.orders.get_db', return_value=mock_conn), \
+             patch('routes.dashboard.get_db', return_value=mock_conn):
             yield flask_app
 
 

@@ -29,6 +29,8 @@
 | Database | Railway PostgreSQL (전용) |
 | Frontend | Vanilla JS (ES6+) + Custom CSS |
 | Excel | openpyxl (서버), SheetJS (클라이언트, 변환/다운로드) |
+| CORS | flask-cors |
+| 테스트 | pytest + pytest-cov |
 | 배포 | Vercel |
 
 ---
@@ -38,7 +40,8 @@
 ```
 order-management/
 ├── app.py                    # Flask 메인 앱 (API 엔드포인트, DB 연결)
-├── config.py                 # 환경 설정
+├── config.py                 # Config 클래스 (환경변수 관리, 검증)
+├── pytest.ini                # pytest 설정
 ├── requirements.txt          # Python 의존성
 ├── vercel.json               # Vercel 배포 설정
 │
@@ -53,18 +56,28 @@ order-management/
 │   ├── css/
 │   │   └── styles.css
 │   └── js/
-│       └── app.es6.js        # 프론트엔드 로직 (변환/확정/주문관리 전체)
+│       ├── app.es6.js        # 프론트엔드 로직 (변환/확정/주문관리 전체)
+│       ├── app.core.js       # 상수, 전역변수, 초기화, API 호출, 유틸리티
+│       ├── app.ui.js         # UI 렌더링 (달력, 메뉴, 테이블, 모달)
+│       ├── app.convert.js    # 발주서 변환 워크플로우
+│       ├── app.orders.js     # 주문관리, 다운로드, SKU CRUD
+│       └── app.features.js   # AI-Native Phase 1+2 기능
 │
 ├── migrations/
 │   ├── 001_initial.sql       # 테이블 생성 SQL
 │   ├── 002_update_schema.sql # 스키마 업데이트
-│   └── 003_add_missing_columns.sql # 누락 컬럼 추가
+│   ├── 003_add_missing_columns.sql # 누락 컬럼 추가
+│   └── 004_migration_tracking_and_fixes.sql # 마이그레이션 추적 및 수정
 │
 ├── .claude/
 │   ├── decisions.md          # 아키텍처 결정 기록
 │   ├── rules/
 │   │   └── ai-native.md      # AI 네이티브 규칙
 │   └── commands/             # 슬래시 커맨드
+│
+├── tests/                    # pytest 테스트 스위트 (71개 테스트)
+├── docs/
+│   └── API.md                # 전체 API 문서
 │
 ├── index.html                # 레거시 (Firebase 버전, 참조용)
 ├── CLAUDE.md                 # 이 파일
@@ -126,6 +139,14 @@ order-management/
 | PUT | /api/orders/:id | 주문 수정 |
 | POST | /api/orders/bulk-update | 일괄 수정 |
 | DELETE | /api/orders/:id | 주문 삭제 |
+| GET | /api/orders/stats | 주문 통계 집계 |
+| GET | /api/orders/anomaly-stats | 이상치 감지용 통계 |
+| POST | /api/orders/check-duplicates | 중복 주문 감지 |
+
+### 거래처 (추가)
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/vendor-mappings/suggest | 유사 SKU 제안 |
 
 ### 엑셀
 | 메서드 | 경로 | 설명 |
@@ -146,6 +167,9 @@ order-management/
 DATABASE_URL=postgresql://postgres:xxx@xxx.railway.app:5432/railway
 SECRET_KEY=your-secret-key
 DEBUG=False
+API_KEY=           # 설정 시 쓰기 API 인증 활성화
+CORS_ORIGINS=*     # 허용 도메인
+LOG_LEVEL=INFO     # 로깅 레벨
 ```
 
 ---
@@ -203,9 +227,17 @@ SECRET_KEY=...
 - 전체주문관리 (상태 토글, 송장 업로드, 일괄 업데이트)
 - 엑셀 다운로드 (B타입, 전체주문, 통합조회)
 
-### Phase 4: 검증 및 전환 (진행 중)
+### Phase 4: 검증 및 전환 ✅
 - 모든 기능 테스트
 - Firebase 코드 제거
+
+### Phase 5: 품질 강화 ✅
+- API 키 인증 미들웨어
+- 구조화된 로깅 (Python logging)
+- CORS 설정
+- 테스트 스위트 (71개)
+- JS 모듈 분리 (5개 파일)
+- API 문서화
 
 ---
 
@@ -234,15 +266,14 @@ SECRET_KEY=...
 ### 검증 방법
 
 ```bash
+# 테스트 실행
+pytest tests/ -v
+
 # Flask 앱 실행
 python app.py
 
 # API 테스트
 curl http://localhost:5000/api/health
-curl http://localhost:5000/api/users
-
-# 전체 기능 테스트
-# 브라우저에서 http://localhost:5000 접속
 ```
 
 ---
@@ -274,6 +305,7 @@ curl http://localhost:5000/api/users
 | **마이그레이션 전 백업 필수** | DB 스키마 변경 전 반드시 pg_dump로 백업 수행 |
 | **고객 주문 데이터 외부 전송 금지** | 주문 데이터는 내부 시스템에서만 사용, 외부 API 전송 금지 |
 | **기존 기능 보장** | 리팩토링 시 기존 동작 필수 확인 (ai-native.md 참조) |
+| **테스트 통과 후 커밋** | pytest tests/ 전체 통과 확인 후에만 커밋 |
 
 ### 코드 컨벤션 규칙
 

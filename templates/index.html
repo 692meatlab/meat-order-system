@@ -683,6 +683,10 @@
             .stats-cards { grid-template-columns: repeat(2, 1fr); }
             .stats-chart-card { grid-column: 1 / -1; }
         }
+
+        /* 페이지네이션 */
+        .pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 0; }
+        .pagination-info { font-size: 13px; color: #7f8c8d; min-width: 150px; text-align: center; }
     </style>
 </head>
 <body>
@@ -1023,6 +1027,7 @@
                 </div>
                 <div class="result-summary" id="order-summary"></div>
                 <div class="table-container" id="order-table"></div>
+                <div id="order-pagination" style="margin-top: 12px;"></div>
                 <div class="btn-group">
                     <button class="btn btn-success" onclick="bulkUpdateStatus('shipped', true)">선택 출고완료</button>
                     <button class="btn btn-primary" onclick="bulkUpdateStatus('paid', true)">선택 입금완료</button>

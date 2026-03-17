@@ -1,6 +1,12 @@
 // ==================== app.orders.js ====================
 // 주문관리: 로딩, 확정데이터, 등록, 주문관리 렌더링, 상태 토글, 다운로드, SKU CRUD
 
+        // ==================== 페이지네이션 상태 ====================
+        let orderCurrentPage = 1;
+        let orderPerPage = 50;
+        let orderTotalPages = 1;
+        let orderTotal = 0;
+
         // ==================== 주문 데이터 로드 ====================
         function loadUserConfirmed(userId) {
             // 확정 데이터는 클라이언트 메모리(confirmedData)에서 관리
@@ -12,12 +18,18 @@
             try {
                 const dateFrom = document.getElementById('order-date-from')?.value || '';
                 const dateTo = document.getElementById('order-date-to')?.value || '';
-                let url = `/api/orders?user_id=${userId || currentUserId}&limit=500`;
+                let url = `/api/orders?user_id=${userId || currentUserId}&page=${orderCurrentPage}&per_page=${orderPerPage}`;
                 if (dateFrom) url += `&date_from=${dateFrom}`;
                 if (dateTo) url += `&date_to=${dateTo}`;
 
                 const res = await fetch(url);
                 const data = await res.json();
+
+                // 페이지네이션 메타데이터 저장
+                orderTotal = data.total || 0;
+                orderCurrentPage = data.page || 1;
+                orderTotalPages = data.total_pages || 1;
+
                 orderManagementData = (data.orders || []).map(o => ({
                     _id: o.id,
                     _selected: false,
@@ -46,11 +58,32 @@
                     _bTypeDownloaded: o.b_type_downloaded || false
                 }));
                 renderOrderManagement();
+                renderOrderPagination(orderTotal, orderCurrentPage, orderTotalPages);
             } catch (e) {
                 console.error('주문 로드 실패:', e);
                 showToast('주문 데이터 로드 실패', 'error');
             }
             hideLoading();
+        }
+
+        function renderOrderPagination(total, page, totalPages) {
+            const container = document.getElementById('order-pagination');
+            if (!container) return;
+            if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+            let html = '<div class="pagination">';
+            html += `<button class="btn btn-secondary btn-small" onclick="goToOrderPage(1)" ${page === 1 ? 'disabled' : ''}>처음</button>`;
+            html += `<button class="btn btn-secondary btn-small" onclick="goToOrderPage(${page - 1})" ${page === 1 ? 'disabled' : ''}>이전</button>`;
+            html += `<span class="pagination-info">${page} / ${totalPages} (총 ${total}건)</span>`;
+            html += `<button class="btn btn-secondary btn-small" onclick="goToOrderPage(${page + 1})" ${page === totalPages ? 'disabled' : ''}>다음</button>`;
+            html += `<button class="btn btn-secondary btn-small" onclick="goToOrderPage(${totalPages})" ${page === totalPages ? 'disabled' : ''}>마지막</button>`;
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function goToOrderPage(page) {
+            orderCurrentPage = page;
+            loadUserOrders();
         }
 
         // ==================== 변환확정 렌더링 ====================

@@ -3,19 +3,40 @@ import json
 
 
 def test_get_orders(client, mock_db):
-    """주문 목록 조회"""
+    """주문 목록 조회 (페이지네이션)"""
     _, mock_cursor = mock_db
+    mock_cursor.fetchone.return_value = {'count': 0}
     mock_cursor.fetchall.return_value = []
 
     response = client.get('/api/orders')
     assert response.status_code == 200
     data = response.get_json()
     assert 'orders' in data
+    assert 'total' in data
+    assert 'page' in data
+    assert 'per_page' in data
+    assert 'total_pages' in data
+
+
+def test_get_orders_with_pagination(client, mock_db):
+    """주문 페이지네이션 조회"""
+    _, mock_cursor = mock_db
+    mock_cursor.fetchone.return_value = {'count': 150}
+    mock_cursor.fetchall.return_value = []
+
+    response = client.get('/api/orders?page=2&per_page=50')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['page'] == 2
+    assert data['per_page'] == 50
+    assert data['total'] == 150
+    assert data['total_pages'] == 3
 
 
 def test_get_orders_with_filters(client, mock_db):
     """주문 필터링 조회"""
     _, mock_cursor = mock_db
+    mock_cursor.fetchone.return_value = {'count': 0}
     mock_cursor.fetchall.return_value = []
 
     response = client.get('/api/orders?user_id=1&date_from=2026-01-01&date_to=2026-12-31')
@@ -25,19 +46,23 @@ def test_get_orders_with_filters(client, mock_db):
 def test_get_orders_with_status_filter(client, mock_db):
     """주문 상태 필터링 조회"""
     _, mock_cursor = mock_db
+    mock_cursor.fetchone.return_value = {'count': 0}
     mock_cursor.fetchall.return_value = []
 
     response = client.get('/api/orders?status=registered')
     assert response.status_code == 200
 
 
-def test_get_orders_with_limit(client, mock_db):
-    """주문 조회 - 제한"""
+def test_get_orders_per_page_limit(client, mock_db):
+    """주문 조회 - per_page 최대 200 제한"""
     _, mock_cursor = mock_db
+    mock_cursor.fetchone.return_value = {'count': 0}
     mock_cursor.fetchall.return_value = []
 
-    response = client.get('/api/orders?limit=10')
+    response = client.get('/api/orders?per_page=500')
     assert response.status_code == 200
+    data = response.get_json()
+    assert data['per_page'] == 200
 
 
 def test_create_orders(client, mock_db, sample_order):
