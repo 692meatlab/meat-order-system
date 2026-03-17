@@ -193,16 +193,19 @@
                         </tr>
                     </thead>
                     <tbody>
-                        ${parts.map(([name, data]) => `
+                        ${parts.map(([name, data]) => {
+                            const typeLabel = data.type === 'unit' ? '1개당' : '100g당';
+                            return `
                             <tr>
                                 <td>${escapeHtml(name)}</td>
+                                <td><span class="unit-badge unit-${data.type || 'weight'}">${typeLabel}</span></td>
                                 <td>${(data.price || 0).toLocaleString()}원</td>
-                                <td>${data.type === 'unit' ? '개수' : '중량'}</td>
                                 <td>
+                                    <button class="btn btn-secondary btn-small" onclick="editPart('${escapeHtml(name)}')">수정</button>
                                     <button class="btn btn-danger btn-small" onclick="deletePart('${escapeHtml(name)}')">삭제</button>
                                 </td>
-                            </tr>
-                        `).join('')}
+                            </tr>`;
+                        }).join('')}
                     </tbody>
                 </table>
             `;
@@ -233,6 +236,7 @@
                                 <td>${escapeHtml(name)}</td>
                                 <td>${price.toLocaleString()}원</td>
                                 <td>
+                                    <button class="btn btn-secondary btn-small" onclick="editPackaging('${escapeHtml(name)}')">수정</button>
                                     <button class="btn btn-danger btn-small" onclick="deletePackaging('${escapeHtml(name)}')">삭제</button>
                                 </td>
                             </tr>

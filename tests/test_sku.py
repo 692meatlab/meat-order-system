@@ -133,6 +133,41 @@ def test_create_parts_cost_no_name(client):
     assert response.status_code == 400
 
 
+def test_update_parts_cost(client, mock_db):
+    """부위별 원가 수정"""
+    _, mock_cursor = mock_db
+    mock_cursor.fetchone.return_value = {
+        'id': 1, 'part_name': '채끝', 'price_per_100g': 8500, 'cost_type': 'weight'
+    }
+
+    response = client.put('/api/parts-cost/1', json={
+        'part_name': '채끝',
+        'price_per_100g': 8500,
+        'cost_type': 'weight'
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert 'part' in data
+    assert data['part']['part_name'] == '채끝'
+
+
+def test_update_parts_cost_no_name(client):
+    """부위별 원가 수정 - 이름 누락"""
+    response = client.put('/api/parts-cost/1', json={'price_per_100g': 8500})
+    assert response.status_code == 400
+
+
+def test_update_parts_cost_not_found(client, mock_db):
+    """부위별 원가 수정 - 존재하지 않는 항목"""
+    _, mock_cursor = mock_db
+    mock_cursor.fetchone.return_value = None
+
+    response = client.put('/api/parts-cost/999', json={
+        'part_name': '없는부위', 'price_per_100g': 1000
+    })
+    assert response.status_code == 404
+
+
 def test_delete_parts_cost(client, mock_db):
     """부위별 원가 삭제"""
     response = client.delete('/api/parts-cost/1')
@@ -174,6 +209,40 @@ def test_create_packaging_cost_no_name(client):
     """포장재 원가 생성 - 이름 누락"""
     response = client.post('/api/packaging-cost', json={'price': 5000})
     assert response.status_code == 400
+
+
+def test_update_packaging_cost(client, mock_db):
+    """포장재 원가 수정"""
+    _, mock_cursor = mock_db
+    mock_cursor.fetchone.return_value = {
+        'id': 1, 'packaging_name': '보냉백', 'price': 3000
+    }
+
+    response = client.put('/api/packaging-cost/1', json={
+        'packaging_name': '보냉백',
+        'price': 3000
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert 'packaging' in data
+    assert data['packaging']['packaging_name'] == '보냉백'
+
+
+def test_update_packaging_cost_no_name(client):
+    """포장재 원가 수정 - 이름 누락"""
+    response = client.put('/api/packaging-cost/1', json={'price': 3000})
+    assert response.status_code == 400
+
+
+def test_update_packaging_cost_not_found(client, mock_db):
+    """포장재 원가 수정 - 존재하지 않는 항목"""
+    _, mock_cursor = mock_db
+    mock_cursor.fetchone.return_value = None
+
+    response = client.put('/api/packaging-cost/999', json={
+        'packaging_name': '없는포장재', 'price': 1000
+    })
+    assert response.status_code == 404
 
 
 def test_delete_packaging_cost(client, mock_db):

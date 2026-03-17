@@ -445,16 +445,19 @@
                         </tr>
                     </thead>
                     <tbody>
-                        ${parts.map(([name, data]) => `
+                        ${parts.map(([name, data]) => {
+                            const typeLabel = data.type === 'unit' ? '1개당' : '100g당';
+                            return `
                             <tr>
                                 <td>${escapeHtml(name)}</td>
+                                <td><span class="unit-badge unit-${data.type || 'weight'}">${typeLabel}</span></td>
                                 <td>${(data.price || 0).toLocaleString()}원</td>
-                                <td>${data.type === 'unit' ? '개수' : '중량'}</td>
                                 <td>
+                                    <button class="btn btn-secondary btn-small" onclick="editPart('${escapeHtml(name)}')">수정</button>
                                     <button class="btn btn-danger btn-small" onclick="deletePart('${escapeHtml(name)}')">삭제</button>
                                 </td>
-                            </tr>
-                        `).join('')}
+                            </tr>`;
+                        }).join('')}
                     </tbody>
                 </table>
             `;
@@ -485,6 +488,7 @@
                                 <td>${escapeHtml(name)}</td>
                                 <td>${price.toLocaleString()}원</td>
                                 <td>
+                                    <button class="btn btn-secondary btn-small" onclick="editPackaging('${escapeHtml(name)}')">수정</button>
                                     <button class="btn btn-danger btn-small" onclick="deletePackaging('${escapeHtml(name)}')">삭제</button>
                                 </td>
                             </tr>
@@ -979,6 +983,42 @@
             hideLoading();
         }
 
+        async function editPart(name) {
+            const data = partsData[name];
+            if (!data) { showToast('수정할 부위를 찾을 수 없습니다.', 'error'); return; }
+            const id = partsIdMap[name];
+            if (!id) { showToast('수정할 부위를 찾을 수 없습니다.', 'error'); return; }
+
+            const currentPrice = typeof data === 'number' ? data : data.price;
+            const currentType = typeof data === 'number' ? 'weight' : (data.type || 'weight');
+
+            const newName = prompt('품목명을 입력하세요:', name);
+            if (newName === null) return;
+            if (!newName.trim()) { alert('품목명을 입력해주세요.'); return; }
+
+            const typeLabel = currentType === 'weight' ? '중량(100g당)' : '개수(1개당)';
+            const changeType = confirm(`현재 단위: ${typeLabel}\n\n단위를 변경하시겠습니까?\n[확인] = 변경 / [취소] = 유지`);
+            const newType = changeType ? (currentType === 'weight' ? 'unit' : 'weight') : currentType;
+            const priceLabel = newType === 'weight' ? '100g당' : '1개당';
+
+            const newPrice = prompt(`${priceLabel} 단가를 입력하세요:`, currentPrice);
+            if (newPrice === null) return;
+            const priceNum = parseInt(newPrice);
+            if (isNaN(priceNum) || priceNum < 0) { alert('올바른 단가를 입력해주세요.'); return; }
+
+            try {
+                await fetch(`/api/parts-cost/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ part_name: newName.trim(), price_per_100g: priceNum, cost_type: newType })
+                });
+                showToast(`'${newName.trim()}' 품목이 수정되었습니다.`, 'success');
+                await loadPartsData();
+            } catch (e) {
+                showToast('수정 실패', 'error');
+            }
+        }
+
         async function deletePart(name) {
             if (!confirm(`"${name}" 부위를 삭제하시겠습니까?`)) return;
             const id = partsIdMap[name];
@@ -1025,6 +1065,34 @@
                 showToast('저장 실패', 'error');
             }
             hideLoading();
+        }
+
+        async function editPackaging(name) {
+            const currentPrice = packagingData[name];
+            if (currentPrice === undefined) { showToast('수정할 포장재를 찾을 수 없습니다.', 'error'); return; }
+            const id = packagingIdMap[name];
+            if (!id) { showToast('수정할 포장재를 찾을 수 없습니다.', 'error'); return; }
+
+            const newName = prompt('포장방법명을 입력하세요:', name);
+            if (newName === null) return;
+            if (!newName.trim()) { alert('포장방법명을 입력해주세요.'); return; }
+
+            const newPrice = prompt('포장 비용을 입력하세요:', currentPrice);
+            if (newPrice === null) return;
+            const priceNum = parseInt(newPrice);
+            if (isNaN(priceNum) || priceNum < 0) { alert('올바른 가격을 입력해주세요.'); return; }
+
+            try {
+                await fetch(`/api/packaging-cost/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ packaging_name: newName.trim(), price: priceNum })
+                });
+                showToast(`'${newName.trim()}' 포장방법이 수정되었습니다.`, 'success');
+                await loadPackagingData();
+            } catch (e) {
+                showToast('수정 실패', 'error');
+            }
         }
 
         async function deletePackaging(name) {

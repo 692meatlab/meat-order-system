@@ -81,6 +81,39 @@ def create_parts_cost():
         return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
+@sku_bp.route('/api/parts-cost/<int:part_id>', methods=['PUT'])
+@require_api_key
+def update_parts_cost(part_id):
+    """부위별 원가 수정"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    data = request.get_json()
+    part_name = data.get('part_name', '').strip()
+    price_per_100g = data.get('price_per_100g', 0)
+    cost_type = data.get('cost_type', 'weight')
+
+    if not part_name:
+        return jsonify({'error': 'Part name is required'}), 400
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+                UPDATE parts_cost SET part_name = %s, price_per_100g = %s, cost_type = %s
+                WHERE id = %s RETURNING *
+            ''', (part_name, price_per_100g, cost_type, part_id))
+            part = cur.fetchone()
+            conn.commit()
+        if not part:
+            return jsonify({'error': '해당 부위를 찾을 수 없습니다'}), 404
+        return jsonify({'part': part})
+    except Exception as e:
+        conn.rollback()
+        logger.error(f'[update_parts_cost] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
 @sku_bp.route('/api/parts-cost/<int:part_id>', methods=['DELETE'])
 @require_api_key
 def delete_parts_cost(part_id):
@@ -149,6 +182,38 @@ def create_packaging_cost():
     except Exception as e:
         conn.rollback()
         logger.error(f'[create_packaging_cost] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
+@sku_bp.route('/api/packaging-cost/<int:pkg_id>', methods=['PUT'])
+@require_api_key
+def update_packaging_cost(pkg_id):
+    """포장재 원가 수정"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    data = request.get_json()
+    packaging_name = data.get('packaging_name', '').strip()
+    price = data.get('price', 0)
+
+    if not packaging_name:
+        return jsonify({'error': 'Packaging name is required'}), 400
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+                UPDATE packaging_cost SET packaging_name = %s, price = %s
+                WHERE id = %s RETURNING *
+            ''', (packaging_name, price, pkg_id))
+            pkg = cur.fetchone()
+            conn.commit()
+        if not pkg:
+            return jsonify({'error': '해당 포장재를 찾을 수 없습니다'}), 404
+        return jsonify({'packaging': pkg})
+    except Exception as e:
+        conn.rollback()
+        logger.error(f'[update_packaging_cost] 오류: {e}', exc_info=True)
         return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
