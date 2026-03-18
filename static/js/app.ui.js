@@ -27,6 +27,10 @@
                             <span class="icon">📋</span> 전체주문관리
                             <span class="badge" id="badge-order-${user.id}" style="display:none;">0</span>
                         </div>
+                        ${userList.length > 1 ? `
+                        <div class="menu-item" style="padding-left: 48px; font-size: 11px; color: #e74c3c; border-top: 1px solid rgba(255,255,255,0.05);" onclick="event.stopPropagation(); deleteUser(${user.id}, '${escapeHtml(user.name)}')">
+                            <span class="icon">🗑️</span> 삭제
+                        </div>` : ''}
                     </div>
                 </div>
             `).join('');
@@ -607,6 +611,28 @@
                 showToast('사용자가 추가되었습니다.', 'success');
             } catch (e) {
                 showToast('사용자 추가 실패', 'error');
+            }
+            hideLoading();
+        }
+
+        async function deleteUser(userId, userName) {
+            if (userList.length <= 1) {
+                alert('최소 1명의 사용자가 필요합니다.');
+                return;
+            }
+            if (!confirm(`"${userName}" 사용자를 삭제하시겠습니까?`)) return;
+
+            showLoading();
+            try {
+                await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+                await loadUsers();
+                renderUserMenus();
+                if (currentUser === userName && userList.length > 0) {
+                    showUserPage('convert', userList[0].name, userList[0].id);
+                }
+                showToast('사용자가 삭제되었습니다.', 'success');
+            } catch (e) {
+                showToast('사용자 삭제 실패', 'error');
             }
             hideLoading();
         }
