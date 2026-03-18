@@ -358,6 +358,101 @@ JSON 데이터 복원
 
 ---
 
+## AI-Native 기능 (A-1~A-7)
+
+> 상세 가이드: [AI-NATIVE-FEATURES.md](./AI-NATIVE-FEATURES.md)
+
+### 퍼지 SKU 매칭 (A-1)
+
+#### POST /api/fuzzy-match
+상품명 배열 → 자동 매칭 결과
+
+**요청:** `{ "items": ["한우 등심세트 1KG"], "vendor_name": "거래처A" }`
+
+**응답:** `{ "results": [{ "original": "...", "matched_sku": "...", "sku_id": 5, "confidence": 0.92, "match_stage": "token" }] }`
+
+#### GET /api/matching-aliases
+별칭 목록
+
+#### POST /api/matching-aliases
+별칭 등록
+
+**요청:** `{ "sku_product_id": 5, "alias_name": "한우등심 세트" }`
+
+#### DELETE /api/matching-aliases/:id
+별칭 삭제
+
+### 원가 이상 감지 (A-2)
+
+#### GET /api/cost-anomalies
+미확인 이상 감지 목록
+
+**응답:** `{ "anomalies": [{ "id": 1, "item_name": "등심", "old_price": 50000, "new_price": 90000, "change_pct": 80, "z_score": 3.2, "severity": "danger" }] }`
+
+#### POST /api/cost-anomalies/:id/acknowledge
+확인 처리
+
+### 수익성 분석 (A-3)
+
+#### GET /api/profitability
+전체 SKU 수익성 목록
+
+**응답:** `{ "products": [...], "summary": { "avg_margin": 35.2 } }`
+
+#### GET /api/profitability/:sku_id
+개별 SKU 원가 상세 (구성품별 비용 분해)
+
+#### GET /api/profitability/trends?months=6
+월별 마진 추이
+
+### 거래처 성과 (A-4)
+
+#### GET /api/vendor-performance?period=30
+거래처별 성과 목록
+
+**파라미터:** `period` (일수, 기본 30)
+
+**응답:** `{ "vendors": [{ "vendor_name": "거래처A", "total_orders": 50, "score": 82.5, "grade": "A", "metrics": { "shipped_rate": 90, "paid_rate": 80, "invoice_rate": 70 } }] }`
+
+#### GET /api/vendor-performance/:vendor/detail?period=90
+거래처 상세 (월별 추이)
+
+### 스마트 중복 감지 (A-5)
+
+기존 `POST /api/orders/check-duplicates` 강화 — 복합 유사도 점수 반환
+
+#### POST /api/duplicate-exclusions
+중복 제외 등록
+
+**요청:** `{ "order_id_1": 1, "order_id_2": 2, "reason": "의도적 중복" }`
+
+### 수요 예측 (A-6)
+
+#### GET /api/forecast?days=7
+SKU별 수요 예측
+
+**응답:** `{ "forecasts": [{ "sku_name": "한우등심세트", "daily": [3.2, 2.8, ...], "total": 22.5 }], "days": 7 }`
+
+#### GET /api/forecast/parts?days=7
+부위별 소요량 예측
+
+#### GET /api/forecast/accuracy
+예측 정확도 (MAPE)
+
+### 스마트 발주 (A-7)
+
+#### GET /api/smart-order/recommendations?days=7
+발주 추천 목록
+
+**응답:** `{ "recommendations": [{ "sku_name": "한우등심세트", "current_stock": 10, "predicted_demand": 25, "recommended_qty": 20, "urgency": "high" }], "summary": { "total_items": 5, "critical_count": 1 } }`
+
+#### POST /api/smart-order/generate
+발주서 데이터 생성 (선택한 항목)
+
+**요청:** `{ "items": [{ "sku_name": "한우등심세트", "quantity": 20 }] }`
+
+---
+
 ## 에러 응답
 
 모든 에러는 다음 형식:
