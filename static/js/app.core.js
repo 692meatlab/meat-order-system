@@ -155,7 +155,7 @@
                 partsData = {};
                 partsIdMap = {};
                 (data.parts || []).forEach(function(p) {
-                    partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type };
+                    partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type, grade: p.grade || '' };
                     partsIdMap[p.part_name] = p.id;
                 });
 
@@ -208,7 +208,7 @@
             partsData = {};
             partsIdMap = {};
             (data.parts || []).forEach(p => {
-                partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type };
+                partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type, grade: p.grade || '' };
                 partsIdMap[p.part_name] = p.id;
             });
             renderPartsTable();

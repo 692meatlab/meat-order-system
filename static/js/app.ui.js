@@ -190,6 +190,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>등급</th>
                             <th>부위명</th>
                             <th>100g당 원가</th>
                             <th>타입</th>
@@ -201,9 +202,10 @@
                             const typeLabel = data.type === 'unit' ? '1개당' : '100g당';
                             return `
                             <tr>
+                                <td>${escapeHtml(data.grade || '')}</td>
                                 <td>${escapeHtml(name)}</td>
-                                <td><span class="unit-badge unit-${data.type || 'weight'}">${typeLabel}</span></td>
                                 <td>${(data.price || 0).toLocaleString()}원</td>
+                                <td><span class="unit-badge unit-${data.type || 'weight'}">${typeLabel}</span></td>
                                 <td>
                                     <button class="btn btn-secondary btn-small" onclick="editPart('${escapeHtml(name)}')">수정</button>
                                     <button class="btn btn-danger btn-small" onclick="deletePart('${escapeHtml(name)}')">삭제</button>

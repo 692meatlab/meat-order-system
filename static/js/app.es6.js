@@ -152,7 +152,7 @@
                 partsData = {};
                 partsIdMap = {};
                 (data.parts || []).forEach(function(p) {
-                    partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type };
+                    partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type, grade: p.grade || '' };
                     partsIdMap[p.part_name] = p.id;
                 });
 
@@ -205,7 +205,7 @@
             partsData = {};
             partsIdMap = {};
             (data.parts || []).forEach(p => {
-                partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type };
+                partsData[p.part_name] = { price: p.price_per_100g, type: p.cost_type, grade: p.grade || '' };
                 partsIdMap[p.part_name] = p.id;
             });
             renderPartsTable();
@@ -442,6 +442,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>등급</th>
                             <th>부위명</th>
                             <th>100g당 원가</th>
                             <th>타입</th>
@@ -453,9 +454,10 @@
                             const typeLabel = data.type === 'unit' ? '1개당' : '100g당';
                             return `
                             <tr>
+                                <td>${escapeHtml(data.grade || '')}</td>
                                 <td>${escapeHtml(name)}</td>
-                                <td><span class="unit-badge unit-${data.type || 'weight'}">${typeLabel}</span></td>
                                 <td>${(data.price || 0).toLocaleString()}원</td>
+                                <td><span class="unit-badge unit-${data.type || 'weight'}">${typeLabel}</span></td>
                                 <td>
                                     <button class="btn btn-secondary btn-small" onclick="editPart('${escapeHtml(name)}')">수정</button>
                                     <button class="btn btn-danger btn-small" onclick="deletePart('${escapeHtml(name)}')">삭제</button>
@@ -985,6 +987,7 @@
         }
 
         async function savePart() {
+            const grade = document.getElementById('part-grade') ? document.getElementById('part-grade').value.trim() : '';
             const name = document.getElementById('part-name').value.trim();
             const price = parseInt(document.getElementById('part-price').value) || 0;
 
@@ -998,7 +1001,7 @@
                 await fetch('/api/parts-cost', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ part_name: name, price_per_100g: price, cost_type: 'weight' })
+                    body: JSON.stringify({ part_name: name, price_per_100g: price, cost_type: 'weight', grade })
                 });
                 await loadPartsData();
                 closePartModal();
@@ -1017,10 +1020,14 @@
 
             const currentPrice = typeof data === 'number' ? data : data.price;
             const currentType = typeof data === 'number' ? 'weight' : (data.type || 'weight');
+            const currentGrade = data.grade || '';
 
-            const newName = prompt('품목명을 입력하세요:', name);
+            const newGrade = prompt('등급을 입력하세요 (예: 1++, 1+, 1, 2):', currentGrade);
+            if (newGrade === null) return;
+
+            const newName = prompt('부위명을 입력하세요:', name);
             if (newName === null) return;
-            if (!newName.trim()) { alert('품목명을 입력해주세요.'); return; }
+            if (!newName.trim()) { alert('부위명을 입력해주세요.'); return; }
 
             const typeLabel = currentType === 'weight' ? '중량(100g당)' : '개수(1개당)';
             const changeType = confirm(`현재 단위: ${typeLabel}\n\n단위를 변경하시겠습니까?\n[확인] = 변경 / [취소] = 유지`);
@@ -1036,7 +1043,7 @@
                 await fetch(`/api/parts-cost/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ part_name: newName.trim(), price_per_100g: priceNum, cost_type: newType })
+                    body: JSON.stringify({ part_name: newName.trim(), price_per_100g: priceNum, cost_type: newType, grade: newGrade.trim() })
                 });
                 showToast(`'${newName.trim()}' 품목이 수정되었습니다.`, 'success');
                 await loadPartsData();

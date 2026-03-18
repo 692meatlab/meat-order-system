@@ -60,6 +60,7 @@ def create_parts_cost():
     part_name = data.get('part_name', '').strip()
     price_per_100g = data.get('price_per_100g', 0)
     cost_type = data.get('cost_type', 'weight')
+    grade = data.get('grade', '').strip()
 
     if not part_name:
         return jsonify({'error': 'Part name is required'}), 400
@@ -67,11 +68,11 @@ def create_parts_cost():
     try:
         with conn.cursor() as cur:
             cur.execute('''
-                INSERT INTO parts_cost (part_name, price_per_100g, cost_type)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (part_name) DO UPDATE SET price_per_100g = %s, cost_type = %s
+                INSERT INTO parts_cost (part_name, price_per_100g, cost_type, grade)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (part_name) DO UPDATE SET price_per_100g = %s, cost_type = %s, grade = %s
                 RETURNING *
-            ''', (part_name, price_per_100g, cost_type, price_per_100g, cost_type))
+            ''', (part_name, price_per_100g, cost_type, grade, price_per_100g, cost_type, grade))
             part = cur.fetchone()
             conn.commit()
         return jsonify({'part': part}), 201
@@ -93,6 +94,7 @@ def update_parts_cost(part_id):
     part_name = data.get('part_name', '').strip()
     price_per_100g = data.get('price_per_100g', 0)
     cost_type = data.get('cost_type', 'weight')
+    grade = data.get('grade', '').strip()
 
     if not part_name:
         return jsonify({'error': 'Part name is required'}), 400
@@ -100,9 +102,9 @@ def update_parts_cost(part_id):
     try:
         with conn.cursor() as cur:
             cur.execute('''
-                UPDATE parts_cost SET part_name = %s, price_per_100g = %s, cost_type = %s
+                UPDATE parts_cost SET part_name = %s, price_per_100g = %s, cost_type = %s, grade = %s
                 WHERE id = %s RETURNING *
-            ''', (part_name, price_per_100g, cost_type, part_id))
+            ''', (part_name, price_per_100g, cost_type, grade, part_id))
             part = cur.fetchone()
             conn.commit()
         if not part:
