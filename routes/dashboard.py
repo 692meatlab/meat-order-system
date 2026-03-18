@@ -355,7 +355,7 @@ def get_vendor_performance():
                     SUM(CASE WHEN paid = TRUE THEN 1 ELSE 0 END) as paid_count,
                     SUM(CASE WHEN invoice_issued = TRUE THEN 1 ELSE 0 END) as invoice_count,
                     AVG(CASE WHEN release_date IS NOT NULL AND order_date IS NOT NULL
-                        THEN EXTRACT(EPOCH FROM (release_date - order_date)) / 86400
+                        THEN (release_date - order_date)
                         ELSE NULL END) as avg_processing_days
                 FROM orders
                 WHERE vendor_name IS NOT NULL AND vendor_name != ''
