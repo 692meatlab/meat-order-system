@@ -1,4 +1,6 @@
 """주문 관련 API"""
+import re
+import json
 import logging
 from flask import Blueprint, jsonify, request, g
 from config import Config
@@ -42,6 +44,11 @@ def get_orders():
     status = request.args.get('status')
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
+    search = request.args.get('search', '').strip()
+    shipped = request.args.get('shipped')
+    paid = request.args.get('paid')
+    invoice_issued = request.args.get('invoice_issued')
+    vendors = request.args.getlist('vendors')
     page = max(1, request.args.get('page', 1, type=int))
     per_page = min(200, max(1, request.args.get('per_page', 50, type=int)))
 
@@ -58,6 +65,30 @@ def get_orders():
             if status:
                 conditions += ' AND o.status = %s'
                 params.append(status)
+
+            # 텍스트 검색 (수령인, 주소, SKU명)
+            if search:
+                conditions += ' AND (o.recipient ILIKE %s OR o.address ILIKE %s OR o.sku_name ILIKE %s OR o.memo ILIKE %s)'
+                search_pattern = f'%{search}%'
+                params.extend([search_pattern, search_pattern, search_pattern, search_pattern])
+
+            # 다중 상태 필터
+            if shipped is not None:
+                conditions += ' AND o.shipped = %s'
+                params.append(shipped == 'true')
+
+            if paid is not None:
+                conditions += ' AND o.paid = %s'
+                params.append(paid == 'true')
+
+            if invoice_issued is not None:
+                conditions += ' AND o.invoice_issued = %s'
+                params.append(invoice_issued == 'true')
+
+            # 거래처 다중 선택
+            if vendors:
+                conditions += ' AND o.vendor_name = ANY(%s)'
+                params.append(vendors)
 
             if date_from:
                 conditions += ' AND o.release_date >= %s'
@@ -177,6 +208,10 @@ def update_order(order_id):
 
     try:
         with conn.cursor() as cur:
+            # 변경 이력용: 기존 값 조회
+            cur.execute('SELECT * FROM orders WHERE id = %s', (order_id,))
+            old_order = cur.fetchone()
+
             # 업데이트할 필드 동적 생성
             updates = []
             params = []
@@ -220,6 +255,22 @@ def update_order(order_id):
                 UPDATE orders SET {', '.join(updates)} WHERE id = %s RETURNING *
             ''', params)
             order = cur.fetchone()
+
+            # 변경 이력 기록
+            if old_order:
+                for key, col in field_map.items():
+                    if key in data:
+                        old_val = str(old_order.get(col, '') or '')
+                        new_val = str(data[key] or '')
+                        if old_val != new_val:
+                            try:
+                                cur.execute('''
+                                    INSERT INTO order_history (order_id, action, field_name, old_value, new_value)
+                                    VALUES (%s, 'update', %s, %s, %s)
+                                ''', (order_id, col, old_val, new_val))
+                            except Exception:
+                                pass  # order_history 테이블이 없어도 주문 수정은 성공
+
             conn.commit()
         return jsonify({'order': order})
     except Exception as e:
@@ -386,9 +437,118 @@ def order_stats():
         return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
+def _normalize_recipient(name):
+    """수령인 정규화: 공백/직함 제거"""
+    name = re.sub(r'\s+', '', name or '')
+    name = re.sub(r'(님|씨|사장|대표|과장|부장|실장)$', '', name)
+    return name
+
+
+def _normalize_phone(phone):
+    """전화번호 정규화: 숫자만"""
+    return re.sub(r'[^0-9]', '', phone or '')
+
+
+def _normalize_address(addr):
+    """주소 정규화: 핵심 키워드"""
+    addr = re.sub(r'\s+', '', addr or '')
+    addr = addr.replace('특별시', '시').replace('광역시', '시')
+    return addr
+
+
+def _recipient_score(a, b):
+    """수령인 유사도 점수"""
+    na, nb = _normalize_recipient(a), _normalize_recipient(b)
+    if not na or not nb:
+        return 0
+    if na == nb:
+        return 100
+    # 한쪽이 포함관계
+    if na in nb or nb in na:
+        return 60
+    # Levenshtein 거리 근사 (간단 버전)
+    if len(na) == len(nb):
+        diff = sum(1 for x, y in zip(na, nb) if x != y)
+        if diff <= 1:
+            return 80
+    return 0
+
+
+def _phone_score(a, b):
+    """전화번호 유사도 점수"""
+    na, nb = _normalize_phone(a), _normalize_phone(b)
+    if not na or not nb:
+        return 0
+    if na == nb:
+        return 100
+    if len(na) >= 8 and len(nb) >= 8 and na[-8:] == nb[-8:]:
+        return 100
+    if len(na) >= 4 and len(nb) >= 4 and na[-4:] == nb[-4:]:
+        return 50
+    return 0
+
+
+def _address_score(a, b):
+    """주소 유사도 점수"""
+    na, nb = _normalize_address(a), _normalize_address(b)
+    if not na or not nb:
+        return 0
+    if na == nb:
+        return 100
+    # Jaccard (토큰 기반)
+    tokens_a = set(re.findall(r'[가-힣]+|\d+', na))
+    tokens_b = set(re.findall(r'[가-힣]+|\d+', nb))
+    if not tokens_a or not tokens_b:
+        return 0
+    intersection = tokens_a & tokens_b
+    union = tokens_a | tokens_b
+    jaccard = len(intersection) / len(union)
+    if jaccard >= 0.7:
+        return 100
+    if jaccard >= 0.5:
+        return 60
+    return 0
+
+
+def _sku_score(a, b):
+    """SKU 유사도 점수"""
+    if not a or not b:
+        return 0
+    if a == b:
+        return 100
+    # 토큰 유사도
+    tokens_a = set(re.findall(r'[가-힣]+|[a-zA-Z]+|\d+', a))
+    tokens_b = set(re.findall(r'[가-힣]+|[a-zA-Z]+|\d+', b))
+    if not tokens_a or not tokens_b:
+        return 0
+    intersection = tokens_a & tokens_b
+    union = tokens_a | tokens_b
+    return round(len(intersection) / len(union) * 100)
+
+
+def _composite_duplicate_score(new_order, existing):
+    """복합 유사도 점수 (가중치 합산)"""
+    r_score = _recipient_score(new_order.get('recipient', ''), existing.get('recipient', ''))
+    p_score = _phone_score(new_order.get('phone', ''), existing.get('phone', ''))
+    a_score = _address_score(new_order.get('address', ''), existing.get('address', ''))
+    s_score = _sku_score(new_order.get('sku_name', ''), existing.get('sku_name', ''))
+
+    total = r_score * 0.35 + p_score * 0.25 + a_score * 0.25 + s_score * 0.15
+
+    return {
+        'score': round(total, 1),
+        'breakdown': {
+            'recipient': r_score,
+            'phone': p_score,
+            'address': a_score,
+            'sku': s_score
+        }
+    }
+
+
 @orders_bp.route('/api/orders/check-duplicates', methods=['POST'])
 def check_duplicates():
-    """중복 주문 감지 - 등록 전 중복 후보 반환"""
+    """스마트 중복 주문 감지 - 복합 유사도 점수"""
     conn = get_db()
     if not conn:
         return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
@@ -402,33 +562,176 @@ def check_duplicates():
     try:
         duplicates = []
         with conn.cursor() as cur:
+            # 제외 목록 (테이블 없어도 무시)
+            exclusions = set()
+            try:
+                cur.execute('SELECT order_id_1, order_id_2 FROM duplicate_exclusions')
+                for row in cur.fetchall():
+                    exclusions.add((row['order_id_1'], row['order_id_2']))
+                    exclusions.add((row['order_id_2'], row['order_id_1']))
+            except Exception:
+                pass  # duplicate_exclusions 테이블 없어도 진행
+
             for idx, order in enumerate(orders_to_check):
                 recipient = order.get('recipient', '')
-                sku_name = order.get('sku_name', '')
-
-                if not recipient or not sku_name:
+                if not recipient:
                     continue
 
-                cur.execute('''
-                    SELECT id, vendor_name, sku_name, quantity, recipient, address,
-                           order_date, status
-                    FROM orders
-                    WHERE recipient = %s AND sku_name = %s
-                    AND order_date >= CURRENT_DATE - INTERVAL '7 days'
-                    LIMIT 5
-                ''', (recipient, sku_name))
+                # 후보 검색 (수령인 or 전화번호 유사)
+                norm_recipient = _normalize_recipient(recipient)
+                norm_phone = _normalize_phone(order.get('phone', ''))
 
-                matches = cur.fetchall()
+                conditions = []
+                params = []
+                if norm_recipient:
+                    conditions.append("REPLACE(REPLACE(recipient, ' ', ''), '님', '') ILIKE %s")
+                    params.append(f'%{norm_recipient}%')
+                if norm_phone and len(norm_phone) >= 4:
+                    conditions.append("REPLACE(REPLACE(phone, '-', ''), ' ', '') LIKE %s")
+                    params.append(f'%{norm_phone[-4:]}%')
+
+                if not conditions:
+                    continue
+
+                where = ' OR '.join(conditions)
+                cur.execute(f'''
+                    SELECT id, vendor_name, sku_name, quantity, recipient, phone,
+                           address, order_date, status
+                    FROM orders
+                    WHERE ({where})
+                    AND order_date >= CURRENT_DATE - INTERVAL '14 days'
+                    LIMIT 10
+                ''', params)
+
+                candidates = cur.fetchall()
+                matches = []
+                for existing in candidates:
+                    result = _composite_duplicate_score(order, existing)
+                    if result['score'] >= 60:
+                        matches.append({
+                            'existing_order': existing,
+                            'score': result['score'],
+                            'breakdown': result['breakdown']
+                        })
+
+                matches.sort(key=lambda x: -x['score'])
+
                 if matches:
                     duplicates.append({
                         'index': idx,
                         'order': order,
-                        'existing': matches
+                        'matches': matches[:5]
                     })
 
         return jsonify({'duplicates': duplicates})
     except Exception as e:
         logger.error(f'[check_duplicates] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
+@orders_bp.route('/api/duplicate-exclusions', methods=['POST'])
+@require_api_key
+def create_duplicate_exclusion():
+    """중복 제외 등록"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    data = request.get_json()
+    order_id_1 = data.get('order_id_1')
+    order_id_2 = data.get('order_id_2')
+    reason = data.get('reason', '')
+
+    if not order_id_1 or not order_id_2:
+        return jsonify({'error': 'order_id_1, order_id_2는 필수입니다'}), 400
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO duplicate_exclusions (order_id_1, order_id_2, reason)
+                VALUES (%s, %s, %s) RETURNING *
+            ''', (order_id_1, order_id_2, reason))
+            exclusion = cur.fetchone()
+            conn.commit()
+        return jsonify({'exclusion': exclusion}), 201
+    except Exception as e:
+        conn.rollback()
+        logger.error(f'[create_duplicate_exclusion] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
+# ============================================================
+# 필터 프리셋 API
+# ============================================================
+@orders_bp.route('/api/filter-presets', methods=['GET'])
+def get_filter_presets():
+    """필터 프리셋 목록 조회"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    user_id = request.args.get('user_id', type=int)
+
+    try:
+        with conn.cursor() as cur:
+            if user_id:
+                cur.execute('SELECT * FROM filter_presets WHERE user_id = %s ORDER BY created_at DESC', (user_id,))
+            else:
+                cur.execute('SELECT * FROM filter_presets ORDER BY created_at DESC')
+            presets = cur.fetchall()
+        return jsonify({'presets': presets})
+    except Exception as e:
+        logger.error(f'[get_filter_presets] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
+@orders_bp.route('/api/filter-presets', methods=['POST'])
+@require_api_key
+def create_filter_preset():
+    """필터 프리셋 저장"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    data = request.get_json()
+    user_id = data.get('user_id')
+    name = data.get('name', '').strip()
+    preset_json = data.get('preset_json', {})
+
+    if not name:
+        return jsonify({'error': '프리셋 이름은 필수입니다'}), 400
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO filter_presets (user_id, name, preset_json)
+                VALUES (%s, %s, %s::jsonb) RETURNING *
+            ''', (user_id, name, json.dumps(preset_json)))
+            preset = cur.fetchone()
+            conn.commit()
+        return jsonify({'preset': preset}), 201
+    except Exception as e:
+        conn.rollback()
+        logger.error(f'[create_filter_preset] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
+@orders_bp.route('/api/filter-presets/<int:preset_id>', methods=['DELETE'])
+@require_api_key
+def delete_filter_preset(preset_id):
+    """필터 프리셋 삭제"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM filter_presets WHERE id = %s', (preset_id,))
+            conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        logger.error(f'[delete_filter_preset] 오류: {e}', exc_info=True)
         return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
@@ -467,4 +770,77 @@ def anomaly_stats():
         return jsonify({'stats': stats})
     except Exception as e:
         logger.error(f'[anomaly_stats] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
+# ============================================================
+# 주문 이력/코멘트 API
+# ============================================================
+@orders_bp.route('/api/orders/<int:order_id>/history', methods=['GET'])
+def get_order_history(order_id):
+    """주문 변경 이력 조회"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT * FROM order_history
+                WHERE order_id = %s ORDER BY created_at DESC
+            ''', (order_id,))
+            history = cur.fetchall()
+        return jsonify({'history': history})
+    except Exception as e:
+        logger.error(f'[get_order_history] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
+@orders_bp.route('/api/orders/<int:order_id>/comments', methods=['GET'])
+def get_order_comments(order_id):
+    """주문 코멘트 조회"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT * FROM order_comments
+                WHERE order_id = %s ORDER BY created_at DESC
+            ''', (order_id,))
+            comments = cur.fetchall()
+        return jsonify({'comments': comments})
+    except Exception as e:
+        logger.error(f'[get_order_comments] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
+@orders_bp.route('/api/orders/<int:order_id>/comments', methods=['POST'])
+@require_api_key
+def add_order_comment(order_id):
+    """주문 코멘트 추가"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    data = request.get_json()
+    user_name = data.get('user_name', '')
+    content = data.get('content', '').strip()
+
+    if not content:
+        return jsonify({'error': '코멘트 내용은 필수입니다'}), 400
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO order_comments (order_id, user_name, content)
+                VALUES (%s, %s, %s) RETURNING *
+            ''', (order_id, user_name, content))
+            comment = cur.fetchone()
+            conn.commit()
+        return jsonify({'comment': comment}), 201
+    except Exception as e:
+        conn.rollback()
+        logger.error(f'[add_order_comment] 오류: {e}', exc_info=True)
         return jsonify({'error': '서버 오류가 발생했습니다'}), 500

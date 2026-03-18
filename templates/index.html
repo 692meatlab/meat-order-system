@@ -690,6 +690,120 @@
         /* 페이지네이션 */
         .pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 0; }
         .pagination-info { font-size: 13px; color: #7f8c8d; min-width: 150px; text-align: center; }
+
+        /* Stage 1: 검색/필터 강화 */
+        .search-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+        .search-bar input { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        .search-bar input:focus { outline: none; border-color: var(--primary-color); }
+        .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+        .filter-chip { padding: 4px 12px; border-radius: 16px; font-size: 12px; cursor: pointer; border: 1px solid #ddd; background: white; transition: all 0.2s; }
+        .filter-chip.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .filter-chip:hover { border-color: var(--primary-color); }
+        .preset-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+        .preset-btn { padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; background: #f0f0f0; border: 1px solid #ddd; }
+        .preset-btn:hover { background: #e0e0e0; }
+        .preset-btn.active { background: var(--primary-color); color: white; }
+
+        /* Stage 2: 모바일 추가 대응 */
+        @media (max-width: 768px) {
+            .sidebar { width: 280px; }
+            .main-content { margin-top: 56px; padding: 12px; }
+            .form-row { flex-direction: column !important; gap: 8px; }
+            .form-group { min-width: auto; }
+            .btn { min-height: 44px; }
+            .btn-small { min-height: 36px; padding: 8px 12px; }
+            .card { padding: 16px; }
+            .stats-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            table { font-size: 11px; }
+            th, td { padding: 6px 4px; }
+            .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .modal-content { width: 95% !important; margin: 10px; max-width: none !important; }
+            .btn-group { flex-direction: column; }
+            .btn-group .btn { width: 100%; justify-content: center; }
+        }
+
+        /* Stage 3: 원가 이력 */
+        .cost-history-chart { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; }
+        .cost-history-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 0; }
+        .cost-history-bar { height: 16px; background: linear-gradient(90deg, #3498db, #2980b9); border-radius: 3px; }
+
+        /* Stage 5: 주문 상세 모달 탭 */
+        .tab-nav { display: flex; gap: 0; border-bottom: 2px solid var(--border-color); margin-bottom: 16px; }
+        .tab-btn { padding: 10px 20px; cursor: pointer; border: none; background: none; font-size: 14px; color: var(--text-light); border-bottom: 2px solid transparent; margin-bottom: -2px; }
+        .tab-btn.active { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .history-item { padding: 8px 12px; border-left: 3px solid var(--primary-color); margin-bottom: 8px; background: #f8f9fa; border-radius: 0 4px 4px 0; font-size: 13px; }
+        .comment-item { padding: 12px; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px; }
+        .comment-meta { font-size: 11px; color: var(--text-light); margin-bottom: 4px; }
+
+        /* Stage 6: 매출 리포트 */
+        .report-filter { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px; }
+        .report-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+        @media (max-width: 768px) { .report-cards { grid-template-columns: 1fr; } }
+
+        /* Stage 7: 재고 */
+        .stock-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .stock-ok { background: #d4edda; color: #155724; }
+        .stock-low { background: #f8d7da; color: #721c24; }
+        .stock-zero { background: #e2e3e5; color: #383d41; }
+
+        /* Stage 8: 알림 */
+        .notification-bell { position: relative; cursor: pointer; font-size: 20px; padding: 8px; }
+        .notification-badge { position: absolute; top: 2px; right: 2px; background: var(--danger-color); color: white; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 10px; min-width: 16px; text-align: center; }
+        .notification-panel { position: absolute; top: 100%; right: 0; width: 320px; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); max-height: 400px; overflow-y: auto; z-index: 1001; display: none; }
+        .notification-panel.show { display: block; }
+        .notification-item { padding: 12px 16px; border-bottom: 1px solid var(--border-color); cursor: pointer; }
+        .notification-item:hover { background: #f8f9fa; }
+        .notification-item.unread { background: #e8f4fd; }
+        .notification-title { font-size: 13px; font-weight: 600; }
+        .notification-message { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+        .notification-time { font-size: 11px; color: #bdc3c7; margin-top: 4px; }
+
+        /* AI-Native: 마진 등급 배지 */
+        .grade-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+        .grade-A { background: #d4edda; color: #155724; }
+        .grade-B { background: #cce5ff; color: #004085; }
+        .grade-C { background: #fff3cd; color: #856404; }
+        .grade-D { background: #f8d7da; color: #721c24; }
+        .grade-S { background: #e8daef; color: #6c3483; }
+
+        /* AI-Native: 긴급도 배지 */
+        .urgency-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .urgency-critical { background: #f8d7da; color: #721c24; }
+        .urgency-high { background: #fff3cd; color: #856404; }
+        .urgency-medium { background: #ffeeba; color: #856404; }
+        .urgency-low { background: #d4edda; color: #155724; }
+
+        /* AI-Native: 추세 아이콘 */
+        .trend-up { color: #e74c3c; }
+        .trend-down { color: #27ae60; }
+        .trend-stable { color: #95a5a6; }
+
+        /* AI-Native: 신뢰도 배지 */
+        .confidence-high { background: #d4edda; color: #155724; }
+        .confidence-medium { background: #fff3cd; color: #856404; }
+        .confidence-low { background: #f8d7da; color: #721c24; }
+
+        /* AI-Native: 이상감지 경고 */
+        .anomaly-alert { padding: 16px; border-radius: 8px; margin-bottom: 12px; }
+        .anomaly-alert.danger { background: #f8d7da; border-left: 4px solid #dc3545; }
+        .anomaly-alert.warning { background: #fff3cd; border-left: 4px solid #ffc107; }
+
+        /* AI-Native: CSS 바 차트 (수익성/예측) */
+        .mini-bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--primary-color); }
+
+        /* AI-Native: 성과 스코어카드 */
+        .score-card { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid var(--border-color); text-align: center; cursor: pointer; transition: all 0.2s; }
+        .score-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); transform: translateY(-2px); }
+        .score-value { font-size: 24px; font-weight: 700; }
+        .score-label { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+
+        /* AI-Native: 비교 모달 */
+        .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .compare-item { padding: 8px; border-radius: 4px; }
+        .compare-match { background: #d4edda; }
+        .compare-diff { background: #f8d7da; }
     </style>
 </head>
 <body>
@@ -703,7 +817,24 @@
 
     <!-- 사이드바 -->
     <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">📦 발주서 변환 시스템</div>
+        <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
+            <span>📦 발주서 변환 시스템</span>
+            <div class="notification-bell" onclick="toggleNotificationPanel(event)">
+                🔔
+                <span class="notification-badge" id="notification-badge" style="display:none;">0</span>
+            </div>
+        </div>
+
+        <!-- 알림 패널 -->
+        <div class="notification-panel" id="notification-panel">
+            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 600; font-size: 14px;">알림</span>
+                <button class="btn btn-small btn-secondary" onclick="markAllNotificationsRead()" style="padding: 4px 8px; font-size: 11px;">모두 읽음</button>
+            </div>
+            <div id="notification-list">
+                <div style="padding: 20px; text-align: center; color: #999;">알림이 없습니다</div>
+            </div>
+        </div>
 
         <div class="connection-status" id="connection-status">
             <span class="dot"></span>
@@ -718,6 +849,23 @@
             </div>
             <div class="menu-item" onclick="showPage('integrated-view')">
                 <span class="icon">🔍</span> 통합조회
+            </div>
+            <div class="menu-item" onclick="showPage('vendor-report')">
+                <span class="icon">📈</span> 매출 리포트
+            </div>
+        </div>
+
+        <!-- AI-Native 메뉴 -->
+        <div class="menu-group">
+            <div class="menu-group-title">AI 분석</div>
+            <div class="menu-item" onclick="showPage('profitability')">
+                <span class="icon">📊</span> 수익성 분석
+            </div>
+            <div class="menu-item" onclick="showPage('forecast')">
+                <span class="icon">📈</span> 수요 예측
+            </div>
+            <div class="menu-item" onclick="showPage('smart-order')">
+                <span class="icon">🛒</span> 스마트 발주
             </div>
         </div>
 
@@ -735,6 +883,12 @@
             </div>
             <div class="menu-item" onclick="showPage('vendor-delivery')">
                 <span class="icon">🚚</span> 거래처별 택배관리
+            </div>
+            <div class="menu-item" onclick="showPage('upload-history')">
+                <span class="icon">📁</span> 업로드 이력
+            </div>
+            <div class="menu-item" onclick="showPage('backup-restore')">
+                <span class="icon">💾</span> 백업/복원
             </div>
         </div>
 
@@ -1006,6 +1160,26 @@
                     <span>주문 목록</span>
                     <span class="badge" id="order-badge">0</span>
                 </div>
+                <!-- Stage 1: 텍스트 검색 -->
+                <div class="search-bar">
+                    <input type="text" id="order-search" placeholder="수령인, 주소, SKU명으로 검색..." onkeydown="if(event.key==='Enter')loadUserOrders()">
+                    <button class="btn btn-primary btn-small" onclick="loadUserOrders()">검색</button>
+                </div>
+                <!-- Stage 1: 상태 필터 칩 -->
+                <div class="filter-chips" id="order-filter-chips">
+                    <span class="filter-chip" data-filter="shipped" data-value="false" onclick="toggleFilterChip(this)">미출고</span>
+                    <span class="filter-chip" data-filter="shipped" data-value="true" onclick="toggleFilterChip(this)">출고완료</span>
+                    <span class="filter-chip" data-filter="paid" data-value="false" onclick="toggleFilterChip(this)">미입금</span>
+                    <span class="filter-chip" data-filter="paid" data-value="true" onclick="toggleFilterChip(this)">입금완료</span>
+                    <span class="filter-chip" data-filter="invoice_issued" data-value="false" onclick="toggleFilterChip(this)">계산서미발행</span>
+                    <span class="filter-chip" data-filter="invoice_issued" data-value="true" onclick="toggleFilterChip(this)">계산서발행</span>
+                </div>
+                <!-- 프리셋 바 -->
+                <div class="preset-bar" id="preset-bar" style="display: none;">
+                    <span style="font-size: 12px; color: #888;">프리셋:</span>
+                    <div id="preset-list"></div>
+                    <button class="preset-btn" onclick="saveCurrentFilterPreset()">+ 현재 필터 저장</button>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>기간</label>
@@ -1016,11 +1190,9 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>상태</label>
-                        <select id="order-status-filter">
+                        <label>거래처</label>
+                        <select id="order-vendor-filter">
                             <option value="">전체</option>
-                            <option value="pending">미출고</option>
-                            <option value="shipped">출고완료</option>
                         </select>
                     </div>
                     <div class="form-group" style="flex: 0;">
@@ -1047,6 +1219,252 @@
                     </div>
                     <p style="color: #888; font-size: 12px; margin-top: 8px;">택배사 송장 엑셀 파일을 업로드하면 주문번호/수령인으로 자동 매칭됩니다.</p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+        <!-- 매출 리포트 -->
+        <div id="vendor-report" class="page-content">
+            <div class="page-header">
+                <h1>거래처별 매출 리포트</h1>
+                <p>거래처별 매출 집계 및 추이를 확인합니다</p>
+            </div>
+            <div class="card">
+                <div class="report-filter">
+                    <div class="form-group">
+                        <label>기간</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="date" id="report-date-from" style="flex: 1;">
+                            <span>~</span>
+                            <input type="date" id="report-date-to" style="flex: 1;">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>거래처</label>
+                        <select id="report-vendor-filter">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 0;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" onclick="loadVendorReport()">조회</button>
+                    </div>
+                </div>
+                <div id="vendor-report-content"></div>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="downloadVendorReportExcel()">엑셀 다운로드</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 업로드 이력 -->
+        <div id="upload-history" class="page-content">
+            <div class="page-header">
+                <h1>업로드 이력</h1>
+                <p>엑셀 파일 업로드 및 변환 이력을 확인합니다</p>
+            </div>
+            <div class="card">
+                <div class="card-title">
+                    <span>업로드 이력</span>
+                    <button class="btn btn-primary btn-small" onclick="loadUploadHistory()">새로고침</button>
+                </div>
+                <div class="table-container" id="upload-history-table">
+                    <p style="color: #888; text-align: center; padding: 20px;">이력을 불러오는 중...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 백업/복원 -->
+        <div id="backup-restore" class="page-content">
+            <div class="page-header">
+                <h1>백업/복원</h1>
+                <p>데이터를 JSON으로 내보내거나 가져옵니다</p>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="card">
+                    <div class="card-title">데이터 내보내기</div>
+                    <p style="color: #666; margin-bottom: 16px;">전체 데이터를 JSON 파일로 다운로드합니다.</p>
+                    <button class="btn btn-primary" onclick="exportBackup()">내보내기 (JSON)</button>
+                </div>
+                <div class="card">
+                    <div class="card-title">데이터 가져오기</div>
+                    <p style="color: #666; margin-bottom: 16px;">JSON 백업 파일을 업로드하여 데이터를 복원합니다.</p>
+                    <input type="file" id="backup-file-input" accept=".json" style="margin-bottom: 12px;">
+                    <button class="btn btn-warning" onclick="importBackup()">가져오기</button>
+                </div>
+            </div>
+            <div class="card" style="margin-top: 20px;">
+                <div class="card-title">백업 이력</div>
+                <div class="table-container" id="backup-log-table"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 수익성 분석 (A-3) -->
+        <div id="profitability" class="page-content">
+            <div class="page-header">
+                <h1>수익성 분석</h1>
+                <p>SKU별 원가/마진율 분석 및 개선 제안</p>
+            </div>
+            <div class="stats-cards" id="profitability-summary" style="margin-bottom: 20px;"></div>
+            <div class="card">
+                <div class="card-title">
+                    <span>SKU별 수익성</span>
+                    <button class="btn btn-primary btn-small" onclick="loadProfitability()">새로고침</button>
+                </div>
+                <div class="table-container" id="profitability-table"></div>
+            </div>
+        </div>
+
+        <!-- 수요 예측 (A-6) -->
+        <div id="forecast" class="page-content">
+            <div class="page-header">
+                <h1>수요 예측</h1>
+                <p>과거 주문 데이터 기반 향후 수요 예측</p>
+            </div>
+            <div class="form-row" style="margin-bottom: 16px;">
+                <div class="form-group" style="flex: 0;">
+                    <label>예측 기간</label>
+                    <select id="forecast-days" onchange="loadForecast()">
+                        <option value="7">7일</option>
+                        <option value="14">14일</option>
+                        <option value="30">30일</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">
+                    <span>SKU별 예측</span>
+                    <button class="btn btn-primary btn-small" onclick="loadForecast()">새로고침</button>
+                </div>
+                <div class="table-container" id="forecast-table"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">부위별 예상 소요량</div>
+                <div id="forecast-parts"></div>
+            </div>
+        </div>
+
+        <!-- 스마트 발주 (A-7) -->
+        <div id="smart-order" class="page-content">
+            <div class="page-header">
+                <h1>스마트 발주</h1>
+                <p>수요 예측 + 재고 기반 자동 발주 추천</p>
+            </div>
+            <div class="stats-cards" id="smart-order-summary" style="margin-bottom: 20px;"></div>
+            <div class="card">
+                <div class="card-title">
+                    <span>발주 추천</span>
+                    <div>
+                        <button class="btn btn-primary btn-small" onclick="loadSmartOrder()">새로고침</button>
+                        <button class="btn btn-success btn-small" onclick="generateSmartOrderExcel()">발주서 생성</button>
+                    </div>
+                </div>
+                <div class="table-container" id="smart-order-table"></div>
+            </div>
+        </div>
+
+    <!-- 수익성 상세 모달 (A-3) -->
+    <div class="modal" id="profitability-detail-modal" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="profitability-detail-title">원가 상세</h3>
+                <button class="modal-close" onclick="document.getElementById('profitability-detail-modal').classList.remove('show')">&times;</button>
+            </div>
+            <div class="modal-body" id="profitability-detail-content"></div>
+        </div>
+    </div>
+
+    <!-- 원가 이상 경고 모달 (A-2) -->
+    <div class="modal" id="cost-anomaly-modal" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>원가 이상 감지</h3>
+                <button class="modal-close" onclick="document.getElementById('cost-anomaly-modal').classList.remove('show')">&times;</button>
+            </div>
+            <div class="modal-body" id="cost-anomaly-content"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="document.getElementById('cost-anomaly-modal').classList.remove('show')">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 중복 감지 모달 (A-5) -->
+    <div class="modal" id="duplicate-modal" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>중복 주문 감지</h3>
+                <button class="modal-close" onclick="document.getElementById('duplicate-modal').classList.remove('show')">&times;</button>
+            </div>
+            <div class="modal-body" id="duplicate-modal-content"></div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="document.getElementById('duplicate-modal').classList.remove('show')">등록 취소</button>
+                <button class="btn btn-primary" onclick="proceedDespiteDuplicates()">중복 아님 (등록 진행)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 주문 상세 모달 (Stage 5) -->
+    <div class="modal" id="order-detail-modal" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 id="order-detail-title">주문 상세</h3>
+                <button class="modal-close" onclick="closeOrderDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tab-nav">
+                    <button class="tab-btn active" onclick="switchOrderTab('info')">주문정보</button>
+                    <button class="tab-btn" onclick="switchOrderTab('history')">변경이력</button>
+                    <button class="tab-btn" onclick="switchOrderTab('comments')">코멘트</button>
+                </div>
+                <div id="order-tab-info" class="tab-content active"></div>
+                <div id="order-tab-history" class="tab-content"></div>
+                <div id="order-tab-comments" class="tab-content">
+                    <div id="order-comments-list"></div>
+                    <div style="margin-top: 12px; display: flex; gap: 8px;">
+                        <input type="text" id="new-comment" placeholder="코멘트 입력..." style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                        <button class="btn btn-primary btn-small" onclick="submitOrderComment()">등록</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 원가 이력 모달 (Stage 3) -->
+    <div class="modal" id="cost-history-modal" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 id="cost-history-title">가격 변동 이력</h3>
+                <button class="modal-close" onclick="closeCostHistoryModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="cost-history-content"></div>
+        </div>
+    </div>
+
+    <!-- 재고 조정 모달 (Stage 7) -->
+    <div class="modal" id="inventory-modal" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>재고 조정</h3>
+                <button class="modal-close" onclick="closeInventoryModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>SKU 상품</label>
+                    <select id="inv-sku-select"></select>
+                </div>
+                <div class="form-group">
+                    <label>조정 수량 (양수: 입고, 음수: 출고)</label>
+                    <input type="number" id="inv-change-qty" placeholder="예: 50 또는 -10">
+                </div>
+                <div class="form-group">
+                    <label>사유</label>
+                    <input type="text" id="inv-note" placeholder="예: 입고, 수동 차감">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeInventoryModal()">취소</button>
+                <button class="btn btn-primary" onclick="submitInventoryAdjust()">조정</button>
             </div>
         </div>
     </div>

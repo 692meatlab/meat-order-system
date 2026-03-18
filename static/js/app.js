@@ -461,6 +461,7 @@
                                 <td>
                                     <button class="btn btn-secondary btn-small" onclick="editPart('${escapeHtml(name)}')">수정</button>
                                     <button class="btn btn-danger btn-small" onclick="deletePart('${escapeHtml(name)}')">삭제</button>
+                                    <button class="btn btn-small" style="background:#8e44ad;color:#fff;" onclick="showCostHistory('parts_cost', ${partsIdMap[name] || 0}, '${escapeHtml(name)}')">이력</button>
                                 </td>
                             </tr>`;
                         }).join('')}
@@ -496,6 +497,7 @@
                                 <td>
                                     <button class="btn btn-secondary btn-small" onclick="editPackaging('${escapeHtml(name)}')">수정</button>
                                     <button class="btn btn-danger btn-small" onclick="deletePackaging('${escapeHtml(name)}')">삭제</button>
+                                    <button class="btn btn-small" style="background:#8e44ad;color:#fff;" onclick="showCostHistory('packaging_cost', ${packagingIdMap[name] || 0}, '${escapeHtml(name)}')">이력</button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -521,6 +523,8 @@
                             <th>포장재</th>
                             <th>판매가격</th>
                             <th>구성품</th>
+                            <th>현재고</th>
+                            <th>최소재고</th>
                             <th>작업</th>
                         </tr>
                     </thead>
@@ -529,12 +533,18 @@
                             var compText = (sku.compositions || []).map(function(c) {
                                 return c.part_name + ' ' + c.weight + 'g';
                             }).join(', ') || '-';
+                            var inv = inventoryData.find(function(i) { return i.sku_product_id === sku.id; });
+                            var curStock = inv ? inv.current_stock : 0;
+                            var minStock = inv ? inv.min_stock : 0;
+                            var stockStyle = (inv && curStock <= minStock) ? 'color:#e74c3c;font-weight:bold;' : '';
                             return `
                                 <tr>
                                     <td>${escapeHtml(sku.sku_name)}</td>
                                     <td>${escapeHtml(sku.packaging || '-')}</td>
                                     <td>${(sku.selling_price || 0).toLocaleString()}원</td>
                                     <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(compText)}</td>
+                                    <td style="${stockStyle}">${curStock}</td>
+                                    <td>${minStock}</td>
                                     <td>
                                         <button class="btn btn-primary btn-small" onclick="editSku(${sku.id})">수정</button>
                                         <button class="btn btn-danger btn-small" onclick="deleteSku(${sku.id})">삭제</button>
@@ -1536,6 +1546,12 @@
                 renderConvertResult();
                 showToast(`${workbooks.length}개 파일에서 ${convertedData.length}건의 데이터를 변환했습니다.`, 'success');
 
+                // Stage 4: 업로드 이력 저장
+                const matchedCount = convertedData.filter(d => d._skuMatched).length;
+                const unmatchedCount = convertedData.length - matchedCount;
+                const fileNames = workbooks.map(w => w.fileName).join(', ') || selectedVendor;
+                saveUploadHistory(fileNames, convertedData.length, matchedCount, unmatchedCount, selectedVendor);
+
                 // 파일 입력 초기화
                 workbooks = [];
                 fileInput.value = '';
@@ -2346,7 +2362,7 @@
                 const origIdx = orderManagementData.indexOf(item);
                 html += '<tr>';
                 html += `<td><input type="checkbox" ${item._selected ? 'checked' : ''} onchange="handleOrderRowToggle(${origIdx})"></td>`;
-                html += `<td>${idx + 1}</td>`;
+                html += `<td style="cursor:pointer;color:#3498db;text-decoration:underline;" onclick="openOrderDetailModal(${item._id})">${idx + 1}</td>`;
 
                 columns.forEach(col => {
                     if (col.key === '_shipped') {
@@ -3068,4 +3084,1148 @@
 
             // 원래 등록 로직 실행
             await _originalRegisterOrders();
+        };
+
+        // ==================== Stage 1: 검색/필터 강화 ====================
+        let activeFilterChips = {};
+        let filterPresets = [];
+
+        function toggleFilterChip(el) {
+            el.classList.toggle('active');
+            const filter = el.dataset.filter;
+            const value = el.dataset.value;
+            // 같은 필터의 다른 값 해제
+            document.querySelectorAll(`.filter-chip[data-filter="${filter}"]`).forEach(chip => {
+                if (chip !== el) chip.classList.remove('active');
+            });
+            if (el.classList.contains('active')) {
+                activeFilterChips[filter] = value;
+            } else {
+                delete activeFilterChips[filter];
+            }
+            loadUserOrders();
+        }
+
+        function buildSearchQuery() {
+            const search = document.getElementById('order-search')?.value || '';
+            const dateFrom = document.getElementById('order-date-from')?.value || '';
+            const dateTo = document.getElementById('order-date-to')?.value || '';
+            const vendor = document.getElementById('order-vendor-filter')?.value || '';
+
+            let url = `/api/orders?user_id=${currentUserId}&per_page=200`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+            if (dateFrom) url += `&date_from=${dateFrom}`;
+            if (dateTo) url += `&date_to=${dateTo}`;
+            if (vendor) url += `&vendors=${encodeURIComponent(vendor)}`;
+            if (activeFilterChips.shipped !== undefined) url += `&shipped=${activeFilterChips.shipped}`;
+            if (activeFilterChips.paid !== undefined) url += `&paid=${activeFilterChips.paid}`;
+            if (activeFilterChips.invoice_issued !== undefined) url += `&invoice_issued=${activeFilterChips.invoice_issued}`;
+            return url;
+        }
+
+        // Override loadUserOrders to use new search
+        const _origLoadUserOrders = loadUserOrders;
+        loadUserOrders = async function(userId) {
+            showLoading();
+            try {
+                const uid = userId || currentUserId;
+                if (!uid) { hideLoading(); return; }
+                const url = buildSearchQuery();
+                const res = await fetch(url);
+                const data = await res.json();
+                orderManagementData = (data.orders || []).map(o => ({
+                    _id: o.id,
+                    _selected: false,
+                    registeredDate: o.created_at ? o.created_at.split('T')[0] : '',
+                    vendor: o.vendor_name || '',
+                    releaseDate: o.release_date || '',
+                    productCode: o.product_code || '',
+                    skuName: o.sku_name || '',
+                    productName: o.product_name || '',
+                    quantity: o.quantity || 1,
+                    receiverName: o.recipient || '',
+                    receiverPhone: o.phone || '',
+                    receiverAddr: o.address || '',
+                    memo: o.memo || '',
+                    orderNo: o.order_no || '',
+                    deliveryNo: o.delivery_no || '',
+                    senderName: o.sender_name || '',
+                    senderPhone: o.sender_phone || '',
+                    senderAddr: o.sender_addr || '',
+                    invoiceNo: o.invoice_no || '',
+                    _shipped: o.shipped || false,
+                    _paid: o.paid || false,
+                    _invoiceIssued: o.invoice_issued || false,
+                    unitPrice: o.unit_price || 0,
+                    note: o.note || '',
+                    _bTypeDownloaded: o.b_type_downloaded || false
+                }));
+                renderOrderManagement();
+            } catch (e) {
+                console.error('주문 로드 실패:', e);
+                showToast('주문 데이터 로드 실패', 'error');
+            }
+            hideLoading();
+        };
+
+        async function loadFilterPresets() {
+            try {
+                const res = await fetch('/api/filter-presets');
+                const data = await res.json();
+                filterPresets = data.presets || [];
+                renderFilterPresets();
+            } catch (e) { console.error(e); }
+        }
+
+        function renderFilterPresets() {
+            const container = document.getElementById('preset-list');
+            const bar = document.getElementById('preset-bar');
+            if (!container || !bar) return;
+            if (filterPresets.length > 0) bar.style.display = 'flex';
+            container.innerHTML = filterPresets.map(p => `
+                <button class="preset-btn" onclick="applyFilterPreset(${p.id})">${escapeHtml(p.name)}
+                    <span onclick="event.stopPropagation(); deleteFilterPreset(${p.id})" style="margin-left: 4px; color: #e74c3c;">&times;</span>
+                </button>
+            `).join('');
+        }
+
+        async function saveCurrentFilterPreset() {
+            const name = prompt('프리셋 이름을 입력하세요:');
+            if (!name) return;
+            const presetJson = {
+                search: document.getElementById('order-search')?.value || '',
+                dateFrom: document.getElementById('order-date-from')?.value || '',
+                dateTo: document.getElementById('order-date-to')?.value || '',
+                vendor: document.getElementById('order-vendor-filter')?.value || '',
+                chips: { ...activeFilterChips }
+            };
+            try {
+                await fetch('/api/filter-presets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, preset_json: presetJson })
+                });
+                showToast('프리셋이 저장되었습니다.', 'success');
+                loadFilterPresets();
+            } catch (e) { showToast('저장 실패', 'error'); }
+        }
+
+        function applyFilterPreset(id) {
+            const preset = filterPresets.find(p => p.id === id);
+            if (!preset) return;
+            const pj = typeof preset.preset_json === 'string' ? JSON.parse(preset.preset_json) : preset.preset_json;
+            if (pj.search) document.getElementById('order-search').value = pj.search;
+            if (pj.dateFrom) document.getElementById('order-date-from').value = pj.dateFrom;
+            if (pj.dateTo) document.getElementById('order-date-to').value = pj.dateTo;
+            if (pj.vendor) document.getElementById('order-vendor-filter').value = pj.vendor;
+            activeFilterChips = pj.chips || {};
+            // 칩 UI 동기화
+            document.querySelectorAll('.filter-chip').forEach(chip => {
+                const f = chip.dataset.filter;
+                const v = chip.dataset.value;
+                chip.classList.toggle('active', activeFilterChips[f] === v);
+            });
+            loadUserOrders();
+        }
+
+        async function deleteFilterPreset(id) {
+            try {
+                await fetch(`/api/filter-presets/${id}`, { method: 'DELETE' });
+                loadFilterPresets();
+            } catch (e) { console.error(e); }
+        }
+
+        function updateOrderVendorFilter() {
+            const select = document.getElementById('order-vendor-filter');
+            if (!select) return;
+            const vendors = [...new Set(vendorMappings.map(m => m.vendor_name))];
+            select.innerHTML = '<option value="">전체</option>' +
+                vendors.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        }
+
+        // Stage 1: 리포트 거래처 필터도 업데이트
+        function updateReportVendorFilter() {
+            const select = document.getElementById('report-vendor-filter');
+            if (!select) return;
+            const vendors = [...new Set(vendorMappings.map(m => m.vendor_name))];
+            select.innerHTML = '<option value="">전체</option>' +
+                vendors.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        }
+
+        // ==================== Stage 3: 원가 변동 이력 ====================
+        async function showCostHistory(tableName, itemId, itemName) {
+            document.getElementById('cost-history-title').textContent = `${itemName} 가격 변동 이력`;
+            document.getElementById('cost-history-modal').classList.add('show');
+            const content = document.getElementById('cost-history-content');
+            content.innerHTML = '<p style="text-align: center; color: #888;">로딩 중...</p>';
+
+            try {
+                const res = await fetch(`/api/cost-history?table_name=${tableName}&item_id=${itemId}`);
+                const data = await res.json();
+                const history = data.history || [];
+
+                if (history.length === 0) {
+                    content.innerHTML = '<p style="text-align: center; color: #888;">변동 이력이 없습니다.</p>';
+                    return;
+                }
+
+                const maxPrice = Math.max(...history.map(h => Math.max(h.old_price || 0, h.new_price || 0)));
+                content.innerHTML = '<div class="cost-history-chart">' + history.map(h => {
+                    const date = h.changed_at ? h.changed_at.split('T')[0] : '';
+                    const diff = (h.new_price || 0) - (h.old_price || 0);
+                    const diffStr = diff > 0 ? `+${diff.toLocaleString()}` : diff.toLocaleString();
+                    const barWidth = maxPrice > 0 ? ((h.new_price || 0) / maxPrice * 100) : 0;
+                    return `<div class="cost-history-item">
+                        <span style="min-width: 80px;">${date}</span>
+                        <div style="flex: 1;"><div class="cost-history-bar" style="width: ${barWidth}%;"></div></div>
+                        <span style="min-width: 80px; text-align: right;">${(h.new_price || 0).toLocaleString()}원</span>
+                        <span style="min-width: 60px; text-align: right; color: ${diff > 0 ? '#e74c3c' : '#27ae60'};">${diffStr}</span>
+                    </div>`;
+                }).join('') + '</div>';
+            } catch (e) {
+                content.innerHTML = '<p style="color: #e74c3c;">이력 로드 실패</p>';
+            }
+        }
+
+        function closeCostHistoryModal() {
+            document.getElementById('cost-history-modal').classList.remove('show');
+        }
+
+        // ==================== Stage 4: 업로드 이력 ====================
+        async function loadUploadHistory() {
+            const container = document.getElementById('upload-history-table');
+            if (!container) return;
+
+            try {
+                const res = await fetch('/api/upload-history');
+                const data = await res.json();
+                const history = data.history || [];
+
+                if (history.length === 0) {
+                    container.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">업로드 이력이 없습니다.</p>';
+                    return;
+                }
+
+                container.innerHTML = `<table><thead><tr>
+                    <th>일시</th><th>사용자</th><th>파일명</th><th>거래처</th>
+                    <th>총 행수</th><th>매칭</th><th>미매칭</th><th>상태</th>
+                </tr></thead><tbody>` + history.map(h => `<tr>
+                    <td>${h.created_at ? h.created_at.split('T')[0] : ''}</td>
+                    <td>${escapeHtml(h.user_name || '')}</td>
+                    <td>${escapeHtml(h.filename || '')}</td>
+                    <td>${escapeHtml(h.vendor_name || '')}</td>
+                    <td>${h.row_count || 0}</td>
+                    <td style="color: #27ae60;">${h.matched_count || 0}</td>
+                    <td style="color: #e74c3c;">${h.unmatched_count || 0}</td>
+                    <td>${h.status || ''}</td>
+                </tr>`).join('') + '</tbody></table>';
+            } catch (e) {
+                container.innerHTML = '<p style="color: #e74c3c;">로드 실패</p>';
+            }
+        }
+
+        async function saveUploadHistory(filename, rowCount, matchedCount, unmatchedCount, vendorName) {
+            try {
+                await fetch('/api/upload-history', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        filename, row_count: rowCount,
+                        matched_count: matchedCount,
+                        unmatched_count: unmatchedCount,
+                        vendor_name: vendorName
+                    })
+                });
+            } catch (e) { console.error('업로드 이력 저장 실패:', e); }
+        }
+
+        // ==================== Stage 5: 주문 상세 모달 ====================
+        let currentOrderDetailId = null;
+
+        function openOrderDetailModal(orderId) {
+            currentOrderDetailId = orderId;
+            const order = orderManagementData.find(o => o._id === orderId);
+            if (!order) return;
+
+            document.getElementById('order-detail-title').textContent = `주문 #${orderId} 상세`;
+            document.getElementById('order-detail-modal').classList.add('show');
+            switchOrderTab('info');
+
+            // 주문 정보 렌더
+            document.getElementById('order-tab-info').innerHTML = `
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 13px;">
+                    <span style="color: #888;">거래처:</span><span>${escapeHtml(order.vendor)}</span>
+                    <span style="color: #888;">SKU:</span><span>${escapeHtml(order.skuName)}</span>
+                    <span style="color: #888;">수량:</span><span>${order.quantity}</span>
+                    <span style="color: #888;">수령인:</span><span>${escapeHtml(order.receiverName)}</span>
+                    <span style="color: #888;">연락처:</span><span>${escapeHtml(order.receiverPhone)}</span>
+                    <span style="color: #888;">주소:</span><span>${escapeHtml(order.receiverAddr)}</span>
+                    <span style="color: #888;">출고일:</span><span>${order.releaseDate || '-'}</span>
+                    <span style="color: #888;">메모:</span><span>${escapeHtml(order.memo)}</span>
+                    <span style="color: #888;">출고:</span><span>${order._shipped ? '완료' : '미완료'}</span>
+                    <span style="color: #888;">입금:</span><span>${order._paid ? '완료' : '미완료'}</span>
+                </div>`;
+
+            // 이력/코멘트 로드
+            loadOrderHistory(orderId);
+            loadOrderComments(orderId);
+        }
+
+        function closeOrderDetailModal() {
+            document.getElementById('order-detail-modal').classList.remove('show');
+        }
+
+        function switchOrderTab(tab) {
+            document.querySelectorAll('#order-detail-modal .tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('#order-detail-modal .tab-content').forEach(tc => tc.classList.remove('active'));
+            document.querySelector(`#order-detail-modal .tab-btn[onclick="switchOrderTab('${tab}')"]`)?.classList.add('active');
+            document.getElementById(`order-tab-${tab}`)?.classList.add('active');
+        }
+
+        async function loadOrderHistory(orderId) {
+            const container = document.getElementById('order-tab-history');
+            try {
+                const res = await fetch(`/api/orders/${orderId}/history`);
+                const data = await res.json();
+                const history = data.history || [];
+                if (history.length === 0) {
+                    container.innerHTML = '<p style="color: #888; text-align: center;">변경 이력이 없습니다.</p>';
+                    return;
+                }
+                container.innerHTML = history.map(h => `
+                    <div class="history-item">
+                        <div><strong>${escapeHtml(h.field_name || '')}</strong> 변경</div>
+                        <div style="color: #e74c3c;">${escapeHtml(h.old_value || '(없음)')}</div>
+                        <div>→ <span style="color: #27ae60;">${escapeHtml(h.new_value || '(없음)')}</span></div>
+                        <div style="font-size: 11px; color: #999; margin-top: 4px;">${h.created_at || ''}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = '<p style="color: #e74c3c;">이력 로드 실패</p>';
+            }
+        }
+
+        async function loadOrderComments(orderId) {
+            const container = document.getElementById('order-comments-list');
+            try {
+                const res = await fetch(`/api/orders/${orderId}/comments`);
+                const data = await res.json();
+                const comments = data.comments || [];
+                if (comments.length === 0) {
+                    container.innerHTML = '<p style="color: #888; text-align: center;">코멘트가 없습니다.</p>';
+                    return;
+                }
+                container.innerHTML = comments.map(c => `
+                    <div class="comment-item">
+                        <div class="comment-meta">${escapeHtml(c.user_name || '익명')} · ${c.created_at || ''}</div>
+                        <div>${escapeHtml(c.content)}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = '<p style="color: #e74c3c;">코멘트 로드 실패</p>';
+            }
+        }
+
+        async function submitOrderComment() {
+            const input = document.getElementById('new-comment');
+            const content = input.value.trim();
+            if (!content || !currentOrderDetailId) return;
+
+            try {
+                await fetch(`/api/orders/${currentOrderDetailId}/comments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_name: currentUser || '', content })
+                });
+                input.value = '';
+                loadOrderComments(currentOrderDetailId);
+                showToast('코멘트가 등록되었습니다.', 'success');
+            } catch (e) {
+                showToast('코멘트 등록 실패', 'error');
+            }
+        }
+
+        // ==================== Stage 6: 매출 리포트 ====================
+        let vendorReportData = null;
+
+        async function loadVendorReport() {
+            const dateFrom = document.getElementById('report-date-from')?.value || '';
+            const dateTo = document.getElementById('report-date-to')?.value || '';
+            const vendor = document.getElementById('report-vendor-filter')?.value || '';
+
+            showLoading();
+            try {
+                let url = '/api/dashboard/vendor-report?';
+                if (dateFrom) url += `date_from=${dateFrom}&`;
+                if (dateTo) url += `date_to=${dateTo}&`;
+                if (vendor) url += `vendor=${encodeURIComponent(vendor)}&`;
+
+                const res = await fetch(url);
+                vendorReportData = await res.json();
+                renderVendorReport(vendorReportData);
+            } catch (e) {
+                showToast('리포트 로드 실패', 'error');
+            }
+            hideLoading();
+        }
+
+        function renderVendorReport(data) {
+            const container = document.getElementById('vendor-report-content');
+            if (!container) return;
+            const vs = data.vendor_summary || [];
+            const mt = data.monthly_trend || [];
+            const sb = data.sku_breakdown || [];
+
+            // 거래처별 요약 테이블
+            let html = '<h4 style="margin-bottom: 12px;">거래처별 요약</h4>';
+            if (vs.length > 0) {
+                const maxAmount = Math.max(...vs.map(v => v.total_amount || 0), 1);
+                html += '<div class="bar-chart">' + vs.map(v => `
+                    <div class="bar-row">
+                        <span class="bar-label">${escapeHtml(v.vendor_name || '')}</span>
+                        <div class="bar-track"><div class="bar-fill" style="width: ${((v.total_amount || 0) / maxAmount * 100)}%;"></div></div>
+                        <span class="bar-value">${(v.total_amount || 0).toLocaleString()}원</span>
+                    </div>
+                `).join('') + '</div>';
+
+                html += '<div class="table-container" style="margin-top: 16px;"><table><thead><tr>' +
+                    '<th>거래처</th><th>주문수</th><th>총수량</th><th>매출액</th><th>출고</th><th>입금</th>' +
+                    '</tr></thead><tbody>' + vs.map(v => `<tr>
+                    <td>${escapeHtml(v.vendor_name || '')}</td>
+                    <td>${v.order_count}</td><td>${v.total_qty}</td>
+                    <td>${(v.total_amount || 0).toLocaleString()}원</td>
+                    <td>${v.shipped_count}</td><td>${v.paid_count}</td>
+                </tr>`).join('') + '</tbody></table></div>';
+            } else {
+                html += '<p style="color: #888;">데이터가 없습니다.</p>';
+            }
+
+            // 월별 추이
+            if (mt.length > 0) {
+                html += '<h4 style="margin: 20px 0 12px;">월별 추이</h4>';
+                const maxMonthly = Math.max(...mt.map(m => m.total_amount || 0), 1);
+                html += '<div class="bar-chart">' + mt.map(m => `
+                    <div class="bar-row">
+                        <span class="bar-label">${m.month}</span>
+                        <div class="bar-track"><div class="bar-fill" style="width: ${((m.total_amount || 0) / maxMonthly * 100)}%;"></div></div>
+                        <span class="bar-value">${(m.total_amount || 0).toLocaleString()}원</span>
+                    </div>
+                `).join('') + '</div>';
+            }
+
+            // SKU별 분석
+            if (sb.length > 0) {
+                html += '<h4 style="margin: 20px 0 12px;">SKU별 분석 (Top 20)</h4>';
+                html += '<div class="table-container"><table><thead><tr>' +
+                    '<th>SKU</th><th>주문수</th><th>총수량</th><th>매출액</th>' +
+                    '</tr></thead><tbody>' + sb.map(s => `<tr>
+                    <td>${escapeHtml(s.sku_name || '')}</td>
+                    <td>${s.order_count}</td><td>${s.total_qty}</td>
+                    <td>${(s.total_amount || 0).toLocaleString()}원</td>
+                </tr>`).join('') + '</tbody></table></div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        function downloadVendorReportExcel() {
+            if (!vendorReportData || !vendorReportData.vendor_summary) {
+                showToast('먼저 리포트를 조회하세요.', 'error');
+                return;
+            }
+            const vs = vendorReportData.vendor_summary;
+            const headers = ['거래처', '주문수', '총수량', '매출액', '출고', '입금'];
+            const rows = vs.map(v => [v.vendor_name, v.order_count, v.total_qty, v.total_amount || 0, v.shipped_count, v.paid_count]);
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '매출리포트');
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+            XLSX.writeFile(wb, `매출리포트_${dateStr}.xlsx`);
+            showToast('엑셀 다운로드 완료', 'success');
+        }
+
+        // ==================== Stage 7: 재고 관리 ====================
+        let inventoryData = [];
+
+        async function loadInventory() {
+            try {
+                const res = await fetch('/api/inventory');
+                const data = await res.json();
+                inventoryData = data.inventory || [];
+            } catch (e) { console.error('재고 로드 실패:', e); }
+        }
+
+        function openInventoryModal() {
+            document.getElementById('inv-sku-select').innerHTML = '<option value="">SKU 선택</option>' +
+                skuProducts.map(s => `<option value="${s.id}">${escapeHtml(s.sku_name)}</option>`).join('');
+            document.getElementById('inv-change-qty').value = '';
+            document.getElementById('inv-note').value = '';
+            document.getElementById('inventory-modal').classList.add('show');
+        }
+
+        function closeInventoryModal() {
+            document.getElementById('inventory-modal').classList.remove('show');
+        }
+
+        async function submitInventoryAdjust() {
+            const skuProductId = document.getElementById('inv-sku-select').value;
+            const changeQty = parseInt(document.getElementById('inv-change-qty').value);
+            const note = document.getElementById('inv-note').value;
+
+            if (!skuProductId || isNaN(changeQty) || changeQty === 0) {
+                showToast('SKU와 조정 수량을 입력하세요.', 'error');
+                return;
+            }
+
+            try {
+                await fetch('/api/inventory/adjust', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sku_product_id: parseInt(skuProductId), change_qty: changeQty, note })
+                });
+                closeInventoryModal();
+                showToast('재고가 조정되었습니다.', 'success');
+                loadInventory();
+            } catch (e) {
+                showToast('재고 조정 실패', 'error');
+            }
+        }
+
+        // ==================== Stage 8: 알림 시스템 ====================
+        let notificationData = [];
+
+        async function checkNotifications() {
+            try {
+                const res = await fetch('/api/notifications?unread_only=true');
+                const data = await res.json();
+                notificationData = data.notifications || [];
+                const badge = document.getElementById('notification-badge');
+                const count = data.unread_count || 0;
+                if (badge) {
+                    badge.textContent = count;
+                    badge.style.display = count > 0 ? 'inline-block' : 'none';
+                }
+            } catch (e) { /* 알림 로드 실패 무시 */ }
+        }
+
+        function toggleNotificationPanel(event) {
+            event.stopPropagation();
+            const panel = document.getElementById('notification-panel');
+            panel.classList.toggle('show');
+            if (panel.classList.contains('show')) renderNotificationList();
+        }
+
+        function renderNotificationList() {
+            const container = document.getElementById('notification-list');
+            if (!container) return;
+
+            if (notificationData.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">알림이 없습니다</div>';
+                return;
+            }
+
+            container.innerHTML = notificationData.map(n => `
+                <div class="notification-item ${n.is_read ? '' : 'unread'}" onclick="handleNotificationClick(${n.id})">
+                    <div class="notification-title">${escapeHtml(n.title)}</div>
+                    <div class="notification-message">${escapeHtml(n.message || '')}</div>
+                    <div class="notification-time">${n.created_at ? n.created_at.split('T')[0] : ''}</div>
+                </div>
+            `).join('');
+        }
+
+        async function handleNotificationClick(id) {
+            try {
+                await fetch('/api/notifications/mark-read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: [id] })
+                });
+                checkNotifications();
+            } catch (e) { /* ignore */ }
+        }
+
+        async function markAllNotificationsRead() {
+            try {
+                await fetch('/api/notifications/mark-read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                checkNotifications();
+                showToast('모든 알림을 읽음 처리했습니다.', 'success');
+            } catch (e) { showToast('실패', 'error'); }
+        }
+
+        async function generateNotifications() {
+            try { await fetch('/api/notifications/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) { /* ignore */ }
+        }
+
+        // 5분마다 알림 체크 + 생성
+        setInterval(function() {
+            generateNotifications().then(() => checkNotifications());
+        }, 300000);
+
+        // ==================== Stage 9: 역할 기반 제한 ====================
+        let currentUserRole = 'admin';
+
+        function applyRoleRestrictions(role) {
+            currentUserRole = role || 'admin';
+            // user 역할: 삭제/관리 버튼 숨기기
+            const restrictedBtns = document.querySelectorAll('[data-role-min]');
+            restrictedBtns.forEach(btn => {
+                const minRole = btn.dataset.roleMin;
+                const roleOrder = { 'admin': 3, 'manager': 2, 'user': 1 };
+                btn.style.display = (roleOrder[currentUserRole] || 1) >= (roleOrder[minRole] || 1) ? '' : 'none';
+            });
+        }
+
+        // ==================== Stage 10: 백업/복원 ====================
+        async function exportBackup() {
+            showLoading();
+            try {
+                const res = await fetch('/api/backup/export');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const today = new Date();
+                const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+                a.download = `backup_${dateStr}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('백업 파일이 다운로드되었습니다.', 'success');
+                loadBackupLog();
+            } catch (e) {
+                showToast('내보내기 실패', 'error');
+            }
+            hideLoading();
+        }
+
+        async function importBackup() {
+            const fileInput = document.getElementById('backup-file-input');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showToast('JSON 파일을 선택하세요.', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const text = await file.text();
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                showToast('유효하지 않은 JSON 파일입니다.', 'error');
+                return;
+            }
+
+            // 미리보기
+            const previewRes = await fetch('/api/backup/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: text
+            });
+            const preview = await previewRes.json();
+
+            const summary = Object.entries(preview.preview || {}).map(([k, v]) => `${k}: ${v}건`).join('\n');
+            if (!confirm(`다음 데이터를 복원합니다:\n\n${summary}\n\n기존 데이터가 모두 삭제됩니다. 계속하시겠습니까?`)) return;
+
+            showLoading();
+            try {
+                const res = await fetch('/api/backup/import?confirm=true', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: text
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showToast(`${result.total_rows}건 복원 완료. 새로고침합니다.`, 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast('복원 실패: ' + (result.error || ''), 'error');
+                }
+            } catch (e) {
+                showToast('복원 실패', 'error');
+            }
+            hideLoading();
+        }
+
+        async function loadBackupLog() {
+            const container = document.getElementById('backup-log-table');
+            if (!container) return;
+
+            try {
+                const res = await fetch('/api/backup/log');
+                const data = await res.json();
+                const logs = data.logs || [];
+
+                if (logs.length === 0) {
+                    container.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">이력이 없습니다.</p>';
+                    return;
+                }
+
+                container.innerHTML = `<table><thead><tr>
+                    <th>유형</th><th>테이블수</th><th>총 행수</th><th>일시</th>
+                </tr></thead><tbody>` + logs.map(l => `<tr>
+                    <td>${l.backup_type === 'export' ? '내보내기' : '가져오기'}</td>
+                    <td>${l.table_count}</td><td>${l.total_rows}</td>
+                    <td>${l.created_at || ''}</td>
+                </tr>`).join('') + '</tbody></table>';
+            } catch (e) { container.innerHTML = '<p style="color: #e74c3c;">로드 실패</p>'; }
+        }
+
+        // ==================== showPage 확장 ====================
+        const _origShowPage = showPage;
+        showPage = function(pageId) {
+            _origShowPage(pageId);
+            if (pageId === 'vendor-report') loadVendorReport();
+            if (pageId === 'upload-history') loadUploadHistory();
+            if (pageId === 'backup-restore') loadBackupLog();
+        };
+
+        // ==================== 최종 초기화 훅 ====================
+        const _phase3InitializeApp = initializeApp;
+        initializeApp = async function() {
+            await _phase3InitializeApp();
+            updateOrderVendorFilter();
+            updateReportVendorFilter();
+            loadFilterPresets();
+            loadInventory();
+            // 알림 초기화
+            generateNotifications().then(() => checkNotifications());
+        };
+
+        // 알림 패널 외부 클릭 시 닫기
+        document.addEventListener('click', function(e) {
+            const panel = document.getElementById('notification-panel');
+            if (panel && panel.classList.contains('show')) {
+                if (!e.target.closest('.notification-bell') && !e.target.closest('.notification-panel')) {
+                    panel.classList.remove('show');
+                }
+            }
+        });
+
+        // ==================== AI-Native 기능 ====================
+
+        // ===== A-1: 퍼지 SKU 매칭 =====
+        async function fuzzyMatchItems(vendorName, items) {
+            try {
+                const res = await fetch('/api/fuzzy-match', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vendor_name: vendorName, items })
+                });
+                return await res.json();
+            } catch (e) {
+                console.error('퍼지 매칭 실패:', e);
+                return { results: [] };
+            }
+        }
+
+        function getConfidenceBadge(confidence) {
+            if (confidence >= 0.8) return `<span class="status-badge confidence-high">${(confidence * 100).toFixed(0)}%</span>`;
+            if (confidence >= 0.6) return `<span class="status-badge confidence-medium">${(confidence * 100).toFixed(0)}%</span>`;
+            return `<span class="status-badge confidence-low">${(confidence * 100).toFixed(0)}%</span>`;
+        }
+
+        // ===== A-2: 원가 이상 감지 =====
+        function showCostAnomalyAlert(anomaly) {
+            const modal = document.getElementById('cost-anomaly-modal');
+            const content = document.getElementById('cost-anomaly-content');
+            const severity = anomaly.severity === 'danger' ? 'danger' : 'warning';
+            content.innerHTML = `
+                <div class="anomaly-alert ${severity}">
+                    <h4 style="margin-bottom: 8px;">${severity === 'danger' ? '위험' : '주의'} - 원가 이상 감지</h4>
+                    <p>${anomaly.reason}</p>
+                    ${anomaly.z_score ? `<p style="margin-top: 8px; font-size: 13px;">Z-score: ${anomaly.z_score}</p>` : ''}
+                    ${anomaly.change_pct ? `<p style="font-size: 13px;">변동률: ${anomaly.change_pct}%</p>` : ''}
+                </div>
+            `;
+            modal.classList.add('show');
+        }
+
+        // 기존 savePart/savePackaging 응답에서 anomaly 체크
+        const _origSavePart = typeof savePart === 'function' ? savePart : null;
+        const _origSavePackaging = typeof savePackaging === 'function' ? savePackaging : null;
+
+        // ===== A-3: 수익성 분석 =====
+        async function loadProfitability() {
+            const tableEl = document.getElementById('profitability-table');
+            const summaryEl = document.getElementById('profitability-summary');
+            if (!tableEl) return;
+
+            try {
+                const res = await fetch('/api/profitability');
+                const data = await res.json();
+                const products = data.products || [];
+                const summary = data.summary || {};
+
+                // 요약 카드
+                summaryEl.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${(summary.avg_margin_rate * 100).toFixed(1)}%</div>
+                        <div class="stat-label">평균 마진율</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="font-size: 16px;">${summary.best_sku || '-'}</div>
+                        <div class="stat-label">최고 수익 SKU</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="font-size: 16px;">${summary.worst_sku || '-'}</div>
+                        <div class="stat-label">최저 수익 SKU</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: ${summary.needs_improvement > 0 ? 'var(--danger-color)' : 'var(--success-color)'}">
+                            ${summary.needs_improvement}
+                        </div>
+                        <div class="stat-label">개선 필요 상품</div>
+                    </div>
+                `;
+
+                // 테이블
+                if (products.length === 0) {
+                    tableEl.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">데이터가 없습니다.</p>';
+                    return;
+                }
+
+                tableEl.innerHTML = `<table><thead><tr>
+                    <th>SKU명</th><th>판매가</th><th>원가</th><th>마진</th><th>마진율</th><th>등급</th><th>상세</th>
+                </tr></thead><tbody>` + products.map(p => `<tr>
+                    <td>${p.sku_name}</td>
+                    <td>${(p.selling_price || 0).toLocaleString()}원</td>
+                    <td>${(p.total_cost || 0).toLocaleString()}원</td>
+                    <td style="color: ${p.margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)'}">
+                        ${(p.margin || 0).toLocaleString()}원
+                    </td>
+                    <td>${(p.margin_rate * 100).toFixed(1)}%</td>
+                    <td><span class="grade-badge grade-${p.grade}">${p.grade}</span></td>
+                    <td><button class="btn btn-small btn-secondary" onclick="showProfitabilityDetail(${p.sku_id})">상세</button></td>
+                </tr>`).join('') + '</tbody></table>';
+            } catch (e) {
+                tableEl.innerHTML = '<p style="color: #e74c3c;">로드 실패</p>';
+            }
+        }
+
+        async function showProfitabilityDetail(skuId) {
+            try {
+                const res = await fetch(`/api/profitability/${skuId}`);
+                const data = await res.json();
+                const modal = document.getElementById('profitability-detail-modal');
+                const content = document.getElementById('profitability-detail-content');
+                const title = document.getElementById('profitability-detail-title');
+
+                title.textContent = data.sku_name || '원가 상세';
+                const maxCost = Math.max(...(data.details || []).map(d => d.cost), data.packaging_cost || 0, 1);
+
+                let html = `
+                    <div class="result-summary">
+                        <div class="summary-item"><span class="label">판매가:</span><span class="value">${(data.selling_price || 0).toLocaleString()}원</span></div>
+                        <div class="summary-item"><span class="label">총 원가:</span><span class="value">${(data.total_cost || 0).toLocaleString()}원</span></div>
+                        <div class="summary-item"><span class="label">마진:</span><span class="value" style="color:${data.margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)'}">${(data.margin || 0).toLocaleString()}원 (${(data.margin_rate * 100).toFixed(1)}%)</span></div>
+                        <div class="summary-item"><span class="label">등급:</span><span class="grade-badge grade-${data.grade}">${data.grade}</span></div>
+                    </div>
+                    <h4 style="margin: 16px 0 8px;">구성품 원가 분해</h4>
+                    <div class="bar-chart">
+                `;
+                (data.details || []).forEach(d => {
+                    const pct = maxCost > 0 ? (d.cost / maxCost * 100) : 0;
+                    html += `<div class="bar-row">
+                        <span class="bar-label">${d.part_name} (${d.weight}g)</span>
+                        <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+                        <span class="bar-value">${d.cost.toLocaleString()}원</span>
+                    </div>`;
+                });
+                if (data.packaging_cost > 0) {
+                    const pct = (data.packaging_cost / maxCost * 100);
+                    html += `<div class="bar-row">
+                        <span class="bar-label">${data.packaging_name || '포장재'}</span>
+                        <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background: linear-gradient(90deg, #f39c12, #e67e22);"></div></div>
+                        <span class="bar-value">${data.packaging_cost.toLocaleString()}원</span>
+                    </div>`;
+                }
+                html += '</div>';
+
+                if (data.suggestions && data.suggestions.length > 0) {
+                    html += '<h4 style="margin: 16px 0 8px;">개선 제안</h4><ul style="font-size: 13px; color: #666;">';
+                    data.suggestions.forEach(s => { html += `<li style="margin-bottom: 4px;">${s}</li>`; });
+                    html += '</ul>';
+                }
+
+                content.innerHTML = html;
+                modal.classList.add('show');
+            } catch (e) {
+                showToast('상세 조회 실패', 'error');
+            }
+        }
+
+        // ===== A-4: 거래처 성과 =====
+        async function loadVendorPerformance(period = 30) {
+            const container = document.getElementById('vendor-report-content');
+            if (!container) return;
+
+            try {
+                const res = await fetch(`/api/vendor-performance?period=${period}`);
+                const data = await res.json();
+                const vendors = data.vendors || [];
+
+                if (vendors.length === 0) {
+                    container.innerHTML += '<p style="color: #888; text-align: center; padding: 20px;">성과 데이터가 없습니다.</p>';
+                    return;
+                }
+
+                let html = '<div style="margin-top: 24px;"><h4 style="margin-bottom: 16px;">거래처 성과 순위</h4>';
+                html += `<table><thead><tr>
+                    <th>순위</th><th>거래처</th><th>주문수</th><th>총점</th><th>등급</th>
+                    <th>출고율</th><th>입금율</th><th>계산서율</th><th>처리속도</th>
+                </tr></thead><tbody>`;
+                vendors.forEach((v, i) => {
+                    const m = v.metrics;
+                    html += `<tr>
+                        <td>${i + 1}</td>
+                        <td><strong>${v.vendor_name}</strong></td>
+                        <td>${v.total_orders}</td>
+                        <td><strong>${v.score}</strong></td>
+                        <td><span class="grade-badge grade-${v.grade}">${v.grade}</span></td>
+                        <td>${m.shipped_rate}%</td>
+                        <td>${m.paid_rate}%</td>
+                        <td>${m.invoice_rate}%</td>
+                        <td>${m.avg_processing_days ? m.avg_processing_days + '일' : '-'}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+                container.innerHTML += html;
+            } catch (e) {
+                console.error('거래처 성과 로드 실패:', e);
+            }
+        }
+
+        // ===== A-5: 스마트 중복 감지 =====
+        let _pendingDuplicateCallback = null;
+
+        async function checkSmartDuplicates(orders) {
+            try {
+                const res = await fetch('/api/orders/check-duplicates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orders })
+                });
+                return await res.json();
+            } catch (e) {
+                console.error('중복 감지 실패:', e);
+                return { duplicates: [] };
+            }
+        }
+
+        function showDuplicateModal(duplicates) {
+            const modal = document.getElementById('duplicate-modal');
+            const content = document.getElementById('duplicate-modal-content');
+
+            let html = `<p style="margin-bottom: 16px; color: var(--danger-color);">
+                <strong>${duplicates.length}건</strong>의 중복 가능성이 감지되었습니다.
+            </p>`;
+
+            duplicates.forEach(d => {
+                const order = d.order;
+                const matches = d.matches || [];
+                html += `<div class="card" style="margin-bottom: 12px; padding: 12px;">
+                    <strong>새 주문: ${order.recipient || ''} - ${order.sku_name || ''}</strong>`;
+                matches.forEach(m => {
+                    const ex = m.existing_order || {};
+                    const breakdown = m.breakdown || {};
+                    html += `<div style="margin-top: 8px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <span>유사도: <strong>${m.score}점</strong></span>
+                            <span class="status-badge ${m.score >= 80 ? 'not-paid' : 'not-shipped'}">${m.score >= 80 ? '높음' : '중간'}</span>
+                        </div>
+                        <div style="font-size: 12px; color: #666;">
+                            기존: ${ex.recipient || ''} / ${ex.sku_name || ''} / ${ex.address || ''}
+                        </div>
+                        <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                            수령인: ${breakdown.recipient || 0}점 | 전화: ${breakdown.phone || 0}점 | 주소: ${breakdown.address || 0}점 | SKU: ${breakdown.sku || 0}점
+                        </div>
+                    </div>`;
+                });
+                html += '</div>';
+            });
+
+            content.innerHTML = html;
+            modal.classList.add('show');
+        }
+
+        function proceedDespiteDuplicates() {
+            document.getElementById('duplicate-modal').classList.remove('show');
+            if (_pendingDuplicateCallback) {
+                _pendingDuplicateCallback();
+                _pendingDuplicateCallback = null;
+            }
+        }
+
+        // ===== A-6: 수요 예측 =====
+        async function loadForecast() {
+            const tableEl = document.getElementById('forecast-table');
+            const partsEl = document.getElementById('forecast-parts');
+            if (!tableEl) return;
+
+            const days = document.getElementById('forecast-days')?.value || 7;
+
+            try {
+                const [forecastRes, partsRes] = await Promise.all([
+                    fetch(`/api/forecast?days=${days}`),
+                    fetch(`/api/forecast/parts?days=${days}`)
+                ]);
+
+                const forecastData = await forecastRes.json();
+                const partsData = await partsRes.json();
+                const forecasts = forecastData.forecasts || [];
+
+                if (forecasts.length === 0) {
+                    tableEl.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">예측할 주문 데이터가 없습니다.</p>';
+                } else {
+                    const trendIcon = t => t === 'up' ? '<span class="trend-up">↑</span>' : t === 'down' ? '<span class="trend-down">↓</span>' : '<span class="trend-stable">→</span>';
+                    tableEl.innerHTML = `<table><thead><tr>
+                        <th>SKU명</th><th>${days}일 예측</th><th>신뢰구간</th><th>추세</th>
+                    </tr></thead><tbody>` + forecasts.map(f => `<tr>
+                        <td>${f.sku_name}</td>
+                        <td><strong>${f.total_predicted}</strong>개</td>
+                        <td>${f.confidence_low} ~ ${f.confidence_high}</td>
+                        <td>${trendIcon(f.trend)}</td>
+                    </tr>`).join('') + '</tbody></table>';
+                }
+
+                // 부위별 소요량
+                const parts = partsData.parts || [];
+                if (parts.length === 0) {
+                    partsEl.innerHTML = '<p style="color: #888;">소요량 데이터가 없습니다.</p>';
+                } else {
+                    const maxKg = Math.max(...parts.map(p => p.weight_needed_kg), 1);
+                    partsEl.innerHTML = '<div class="bar-chart">' + parts.map(p => {
+                        const pct = (p.weight_needed_kg / maxKg * 100);
+                        return `<div class="bar-row">
+                            <span class="bar-label">${p.part_name}</span>
+                            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+                            <span class="bar-value">${p.weight_needed_kg}kg</span>
+                        </div>`;
+                    }).join('') + '</div>';
+                }
+            } catch (e) {
+                tableEl.innerHTML = '<p style="color: #e74c3c;">예측 로드 실패</p>';
+            }
+        }
+
+        // ===== A-7: 스마트 발주 =====
+        let smartOrderData = [];
+
+        async function loadSmartOrder() {
+            const tableEl = document.getElementById('smart-order-table');
+            const summaryEl = document.getElementById('smart-order-summary');
+            if (!tableEl) return;
+
+            try {
+                const res = await fetch('/api/smart-order/recommendations?days=7');
+                const data = await res.json();
+                smartOrderData = data.recommendations || [];
+                const summary = data.summary || {};
+
+                summaryEl.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${summary.total_items || 0}</div>
+                        <div class="stat-label">추천 상품 수</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--danger-color);">${summary.critical_count || 0}</div>
+                        <div class="stat-label">긴급 발주</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--warning-color);">${summary.high_count || 0}</div>
+                        <div class="stat-label">높은 우선순위</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${summary.total_recommended_qty || 0}</div>
+                        <div class="stat-label">총 추천 수량</div>
+                    </div>
+                `;
+
+                if (smartOrderData.length === 0) {
+                    tableEl.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">발주 추천이 없습니다.</p>';
+                    return;
+                }
+
+                tableEl.innerHTML = `<table><thead><tr>
+                    <th><input type="checkbox" onclick="toggleAllSmartOrder(this)"></th>
+                    <th>SKU명</th><th>현재고</th><th>예상수요</th><th>추천수량</th>
+                    <th>재고소진</th><th>긴급도</th><th>추세</th>
+                </tr></thead><tbody>` + smartOrderData.map((r, i) => {
+                    const trendIcon = r.trend === 'up' ? '<span class="trend-up">↑</span>' : r.trend === 'down' ? '<span class="trend-down">↓</span>' : '<span class="trend-stable">→</span>';
+                    return `<tr>
+                        <td><input type="checkbox" class="smart-order-check" data-index="${i}" checked></td>
+                        <td>${r.sku_name}</td>
+                        <td>${r.current_stock}</td>
+                        <td>${r.predicted_demand}</td>
+                        <td><input type="number" value="${r.recommended_qty}" min="0" style="width: 70px;" class="smart-order-qty" data-index="${i}"></td>
+                        <td>${r.days_until_stockout < 999 ? r.days_until_stockout + '일' : '충분'}</td>
+                        <td><span class="urgency-badge urgency-${r.urgency}">${r.urgency}</span></td>
+                        <td>${trendIcon}</td>
+                    </tr>`;
+                }).join('') + '</tbody></table>';
+            } catch (e) {
+                tableEl.innerHTML = '<p style="color: #e74c3c;">로드 실패</p>';
+            }
+        }
+
+        function toggleAllSmartOrder(master) {
+            document.querySelectorAll('.smart-order-check').forEach(cb => { cb.checked = master.checked; });
+        }
+
+        async function generateSmartOrderExcel() {
+            const checkedItems = [];
+            document.querySelectorAll('.smart-order-check:checked').forEach(cb => {
+                const idx = parseInt(cb.dataset.index);
+                const qtyInput = document.querySelector(`.smart-order-qty[data-index="${idx}"]`);
+                const qty = qtyInput ? parseInt(qtyInput.value) : smartOrderData[idx].recommended_qty;
+                checkedItems.push({ sku_name: smartOrderData[idx].sku_name, quantity: qty });
+            });
+
+            if (checkedItems.length === 0) {
+                showToast('발주 항목을 선택하세요.', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/smart-order/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: checkedItems })
+                });
+                const data = await res.json();
+
+                // 거래처별 엑셀 생성
+                const wb = XLSX.utils.book_new();
+                Object.entries(data.vendor_groups || {}).forEach(([vendor, items]) => {
+                    const wsData = [['SKU명', '수량']].concat(items.map(i => [i.sku_name, i.quantity]));
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    XLSX.utils.book_append_sheet(wb, ws, vendor.substring(0, 31));
+                });
+
+                if (data.unassigned && data.unassigned.length > 0) {
+                    const wsData = [['SKU명', '수량']].concat(data.unassigned.map(i => [i.sku_name, i.quantity]));
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    XLSX.utils.book_append_sheet(wb, ws, '미배정');
+                }
+
+                XLSX.writeFile(wb, `발주서_${new Date().toISOString().slice(0,10)}.xlsx`);
+                showToast('발주서 생성 완료', 'success');
+            } catch (e) {
+                showToast('발주서 생성 실패', 'error');
+            }
+        }
+
+        // ===== showPage 확장 (AI-Native) =====
+        const _aiNativeShowPage = showPage;
+        showPage = function(pageId) {
+            _aiNativeShowPage(pageId);
+            if (pageId === 'profitability') loadProfitability();
+            if (pageId === 'forecast') loadForecast();
+            if (pageId === 'smart-order') loadSmartOrder();
+            if (pageId === 'vendor-report') loadVendorPerformance();
         };

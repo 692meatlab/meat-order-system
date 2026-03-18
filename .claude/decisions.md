@@ -9,6 +9,26 @@
 
 (새 결정은 위에 추가)
 
+### 2026-03-18: 10대 기능 확장 (Phase 6)
+
+- **결정**: 검색/필터 강화, 모바일 CSS, 원가/주문/업로드 이력, 매출 리포트, 재고 관리, 알림 시스템, 역할 제한, 백업/복원 등 10개 기능 일괄 구현
+- **이유**: 프로덕션 운영 필수 기능 (감사 추적, 재고 관리, 자동 알림, 데이터 백업)
+- **대안**: 기능별 순차 배포 (선택 안 함 - 기능 간 의존성이 높아 일괄 구현이 효율적)
+- **영향**:
+  - 신규 마이그레이션: 005~012 (8개), 신규 DB 테이블: 9개
+  - 신규 Blueprint: uploads.py, inventory.py, notifications.py, backup.py (4개)
+  - API 엔드포인트: 31 → 50+개
+  - 프론트엔드: app.es6.js 3070 → 3800줄 (검색 UI, 모달, 이력, 재고, 알림, 백업 등)
+  - 테스트: 71 → 98개 (단위) + Playwright E2E 테스트 추가
+  - 기존 함수 수정: renderPartsTable, renderPackagingTable, renderSkuTable, buildOrderManagementTable, convertOrders에 새 기능 연결
+
+### 2026-03-18: Playwright E2E 테스트 도입
+
+- **결정**: 단위 테스트(pytest)에 추가로 Playwright 기반 브라우저 E2E 테스트 도입
+- **이유**: API mock 기반 단위 테스트만으로는 UI 렌더링, 페이지 전환, 사용자 워크플로우 검증 불가
+- **대안**: Selenium (선택 안 함 - 느리고 무거움), Cypress (선택 안 함 - Python 프로젝트에서 Node.js 의존성 추가 부담)
+- **영향**: tests/e2e/ 디렉토리, playwright 패키지 추가, conftest.py에 Flask 서버 fixture
+
 ### 2026-03-17: 프로젝트 품질 대폭 개선
 
 - **결정**: 보안/테스트/아키텍처/문서를 전면 개선

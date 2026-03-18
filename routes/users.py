@@ -75,6 +75,51 @@ def create_user():
         return jsonify({'error': '서버 오류가 발생했습니다'}), 500
 
 
+@users_bp.route('/api/users/<int:user_id>', methods=['PUT'])
+@require_api_key
+def update_user(user_id):
+    """사용자 수정 (역할 변경 포함)"""
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
+
+    data = request.get_json()
+    name = data.get('name')
+    role = data.get('role')
+
+    try:
+        with conn.cursor() as cur:
+            updates = []
+            params = []
+            if name is not None:
+                updates.append('name = %s')
+                params.append(name.strip())
+            if role is not None:
+                if role not in ('admin', 'manager', 'user'):
+                    return jsonify({'error': '유효하지 않은 역할입니다'}), 400
+                updates.append('role = %s')
+                params.append(role)
+
+            if not updates:
+                return jsonify({'error': '수정할 필드가 없습니다'}), 400
+
+            params.append(user_id)
+            cur.execute(f'''
+                UPDATE users SET {', '.join(updates)}
+                WHERE id = %s RETURNING id, name, role, created_at
+            ''', params)
+            user = cur.fetchone()
+            conn.commit()
+
+        if not user:
+            return jsonify({'error': '사용자를 찾을 수 없습니다'}), 404
+        return jsonify({'user': user})
+    except Exception as e:
+        conn.rollback()
+        logger.error(f'[update_user] 오류: {e}', exc_info=True)
+        return jsonify({'error': '서버 오류가 발생했습니다'}), 500
+
+
 @users_bp.route('/api/users/<int:user_id>', methods=['DELETE'])
 @require_api_key
 def delete_user(user_id):

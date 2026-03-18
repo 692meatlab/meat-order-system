@@ -15,9 +15,16 @@
 |------|------|
 | 발주서 변환 | 엑셀 파일 업로드 → 자동 컬럼 매핑 → SKU 매칭 |
 | 송장 등록 | 변환완료 → 변환확정 → 등록 워크플로우 |
-| 전체주문관리 | 배송/입금/세금계산서 상태 관리, 필터링, 집계 |
-| SKU 상품관리 | 상품 등록, 원가 계산, 구성품 관리 |
+| 전체주문관리 | 배송/입금/세금계산서 상태 관리, 텍스트 검색, 다중 필터, 프리셋 |
+| SKU 상품관리 | 상품 등록, 원가 계산, 구성품 관리, 재고 현황 |
 | 거래처별 매핑 | 거래처 상품명 → SKU 자동 매칭 |
+| 원가 변동 이력 | 부위/포장재 가격 변경 시 자동 이력 기록, 추이 차트 |
+| 주문 이력/코멘트 | 주문 필드 변경 감사 추적, 코멘트 기능 |
+| 매출 리포트 | 거래처별/월별/SKU별 매출 집계, CSS 바 차트, 엑셀 다운로드 |
+| 재고 관리 | SKU별 현재고/최소재고 관리, 수동 조정, 부족 알림 |
+| 알림 시스템 | 미입금(D+7)/미출고(D+3)/재고부족 자동 알림, 벨 아이콘 |
+| 업로드 이력 | 엑셀 업로드 파일명/행수/매칭율 추적 |
+| 백업/복원 | 전체 데이터 JSON 내보내기/가져오기 |
 
 ---
 
@@ -45,6 +52,17 @@ order-management/
 ├── requirements.txt          # Python 의존성
 ├── vercel.json               # Vercel 배포 설정
 │
+├── routes/
+│   ├── orders.py             # 주문 CRUD, 검색/필터, 이력/코멘트
+│   ├── sku.py                # SKU 상품, 부위/포장재 원가, 원가 이력
+│   ├── vendors.py            # 거래처 매핑/템플릿
+│   ├── users.py              # 사용자 관리, 역할 변경
+│   ├── dashboard.py          # 대시보드, 매출 리포트
+│   ├── uploads.py            # 엑셀 업로드 이력
+│   ├── inventory.py          # 재고 관리
+│   ├── notifications.py      # 알림 시스템
+│   └── backup.py             # 백업/복원
+│
 ├── services/
 │   ├── __init__.py
 │   └── excel_parser.py       # 엑셀 파싱 로직 (서버사이드)
@@ -56,7 +74,8 @@ order-management/
 │   ├── css/
 │   │   └── styles.css
 │   └── js/
-│       ├── app.es6.js        # 프론트엔드 로직 (변환/확정/주문관리 전체)
+│       ├── app.es6.js        # 프론트엔드 로직 (소스, ~3800줄)
+│       ├── app.js            # app.es6.js 복사본 (배포용)
 │       ├── app.core.js       # 상수, 전역변수, 초기화, API 호출, 유틸리티
 │       ├── app.ui.js         # UI 렌더링 (달력, 메뉴, 테이블, 모달)
 │       ├── app.convert.js    # 발주서 변환 워크플로우
@@ -67,7 +86,15 @@ order-management/
 │   ├── 001_initial.sql       # 테이블 생성 SQL
 │   ├── 002_update_schema.sql # 스키마 업데이트
 │   ├── 003_add_missing_columns.sql # 누락 컬럼 추가
-│   └── 004_migration_tracking_and_fixes.sql # 마이그레이션 추적 및 수정
+│   ├── 004_migration_tracking_and_fixes.sql # 마이그레이션 추적
+│   ├── 005_add_grade_column.sql    # 부위 등급
+│   ├── 006_search_enhancement.sql  # 텍스트 검색 강화, 필터 프리셋
+│   ├── 007_cost_history.sql        # 원가 변동 이력
+│   ├── 008_upload_history.sql      # 업로드 이력
+│   ├── 009_order_history.sql       # 주문 이력/코멘트
+│   ├── 010_inventory.sql           # 재고 관리
+│   ├── 011_notifications.sql       # 알림 시스템
+│   └── 012_backup_log.sql          # 백업 이력
 │
 ├── .claude/
 │   ├── decisions.md          # 아키텍처 결정 기록
@@ -75,7 +102,7 @@ order-management/
 │   │   └── ai-native.md      # AI 네이티브 규칙
 │   └── commands/             # 슬래시 커맨드
 │
-├── tests/                    # pytest 테스트 스위트 (71개 테스트)
+├── tests/                    # pytest 테스트 스위트 (98개 테스트)
 ├── docs/
 │   └── API.md                # 전체 API 문서
 │
@@ -96,14 +123,23 @@ order-management/
 
 | 테이블 | 설명 |
 |--------|------|
-| users | 사용자 (발주 담당자) |
+| users | 사용자 (발주 담당자, role 포함) |
 | sku_products | SKU 상품 마스터 |
 | sku_compositions | SKU 구성품 (부위 조합) |
 | vendor_mappings | 거래처별 상품 매핑 |
 | vendor_templates | 거래처별 엑셀 템플릿 |
 | orders | 주문 데이터 |
-| parts_cost | 부위별 원가 |
+| parts_cost | 부위별 원가 (grade 포함) |
 | packaging_cost | 포장재 원가 |
+| filter_presets | 검색 필터 프리셋 (JSONB) |
+| cost_history | 원가 변동 이력 |
+| upload_history | 엑셀 업로드 이력 |
+| order_history | 주문 변경 감사 이력 |
+| order_comments | 주문 코멘트 |
+| inventory | SKU별 재고 (현재고/최소재고) |
+| inventory_log | 재고 변동 로그 |
+| notifications | 시스템 알림 |
+| backup_log | 백업/복원 이력 |
 
 ---
 
@@ -114,6 +150,7 @@ order-management/
 |--------|------|------|
 | GET | /api/users | 사용자 목록 |
 | POST | /api/users | 사용자 생성 |
+| PUT | /api/users/:id | 사용자 수정 (이름/역할) |
 | DELETE | /api/users/:id | 사용자 삭제 |
 
 ### SKU 상품
@@ -130,23 +167,67 @@ order-management/
 | GET | /api/vendors | 거래처 목록 |
 | GET | /api/vendor-mappings | 거래처 매핑 |
 | POST | /api/vendor-mappings | 매핑 생성 |
+| GET | /api/vendor-mappings/suggest | 유사 SKU 제안 |
 
 ### 주문
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/orders | 주문 목록 |
+| GET | /api/orders | 주문 목록 (검색/필터 지원) |
 | POST | /api/orders | 주문 생성 (bulk) |
-| PUT | /api/orders/:id | 주문 수정 |
+| PUT | /api/orders/:id | 주문 수정 (변경 이력 자동 기록) |
 | POST | /api/orders/bulk-update | 일괄 수정 |
 | DELETE | /api/orders/:id | 주문 삭제 |
 | GET | /api/orders/stats | 주문 통계 집계 |
 | GET | /api/orders/anomaly-stats | 이상치 감지용 통계 |
 | POST | /api/orders/check-duplicates | 중복 주문 감지 |
+| GET | /api/orders/:id/history | 주문 변경 이력 |
+| GET | /api/orders/:id/comments | 주문 코멘트 조회 |
+| POST | /api/orders/:id/comments | 주문 코멘트 추가 |
 
-### 거래처 (추가)
+### 검색/필터
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/vendor-mappings/suggest | 유사 SKU 제안 |
+| GET | /api/filter-presets | 필터 프리셋 목록 |
+| POST | /api/filter-presets | 필터 프리셋 저장 |
+| DELETE | /api/filter-presets/:id | 필터 프리셋 삭제 |
+
+### 원가 이력
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/cost-history | 원가 변동 이력 조회 |
+
+### 매출 리포트
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/dashboard/vendor-report | 거래처별 매출 리포트 |
+
+### 업로드 이력
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/upload-history | 업로드 이력 조회 |
+| POST | /api/upload-history | 업로드 이력 기록 |
+
+### 재고 관리
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/inventory | 전체 재고 목록 |
+| PUT | /api/inventory/:sku_product_id | 재고/최소재고 수정 |
+| POST | /api/inventory/adjust | 재고 수동 조정 |
+| GET | /api/inventory/alerts | 최소재고 이하 알림 |
+
+### 알림
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/notifications | 알림 목록 |
+| POST | /api/notifications/mark-read | 알림 읽음 처리 |
+| POST | /api/notifications/generate | 알림 자동 생성 |
+
+### 백업/복원
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/backup/export | 전체 데이터 JSON 다운로드 |
+| POST | /api/backup/import | JSON으로 데이터 복원 |
+| GET | /api/backup/log | 백업 이력 조회 |
 
 ### 엑셀
 | 메서드 | 경로 | 설명 |
@@ -238,6 +319,20 @@ SECRET_KEY=...
 - 테스트 스위트 (71개)
 - JS 모듈 분리 (5개 파일)
 - API 문서화
+
+### Phase 6: 10대 기능 확장 ✅
+- 주문 검색/필터 강화 (텍스트 검색, 다중 필터, 프리셋)
+- 모바일 반응형 CSS
+- 원가 변동 이력 추적 + 차트
+- 엑셀 업로드 이력 관리
+- 주문 변경 감사 이력 + 코멘트
+- 거래처별 매출 리포트 + 엑셀 다운로드
+- SKU별 재고 관리 + 수동 조정
+- 인앱 알림 시스템 (미입금/미출고/재고부족)
+- UI 수준 역할 기반 제한 (admin/manager/user)
+- JSON 백업/복원
+- 테스트 스위트 확장 (71개 → 98개)
+- Playwright E2E 테스트
 
 ---
 

@@ -39,7 +39,15 @@ def app(mock_db):
              patch('routes.sku.get_db', return_value=mock_conn), \
              patch('routes.vendors.get_db', return_value=mock_conn), \
              patch('routes.orders.get_db', return_value=mock_conn), \
-             patch('routes.dashboard.get_db', return_value=mock_conn):
+             patch('routes.dashboard.get_db', return_value=mock_conn), \
+             patch('routes.uploads.get_db', return_value=mock_conn), \
+             patch('routes.inventory.get_db', return_value=mock_conn), \
+             patch('routes.notifications.get_db', return_value=mock_conn), \
+             patch('routes.backup.get_db', return_value=mock_conn), \
+             patch('routes.fuzzy_match.get_db', return_value=mock_conn), \
+             patch('routes.profitability.get_db', return_value=mock_conn), \
+             patch('routes.forecast.get_db', return_value=mock_conn), \
+             patch('routes.smart_order.get_db', return_value=mock_conn):
             yield flask_app
 
 

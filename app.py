@@ -104,12 +104,28 @@ from routes.sku import sku_bp
 from routes.vendors import vendors_bp
 from routes.orders import orders_bp
 from routes.dashboard import dashboard_bp
+from routes.uploads import uploads_bp
+from routes.inventory import inventory_bp
+from routes.notifications import notifications_bp
+from routes.backup import backup_bp
+from routes.fuzzy_match import fuzzy_match_bp
+from routes.profitability import profitability_bp
+from routes.forecast import forecast_bp
+from routes.smart_order import smart_order_bp
 
 app.register_blueprint(users_bp)
 app.register_blueprint(sku_bp)
 app.register_blueprint(vendors_bp)
 app.register_blueprint(orders_bp)
 app.register_blueprint(dashboard_bp)
+app.register_blueprint(uploads_bp)
+app.register_blueprint(inventory_bp)
+app.register_blueprint(notifications_bp)
+app.register_blueprint(backup_bp)
+app.register_blueprint(fuzzy_match_bp)
+app.register_blueprint(profitability_bp)
+app.register_blueprint(forecast_bp)
+app.register_blueprint(smart_order_bp)
 
 
 # ============================================================
