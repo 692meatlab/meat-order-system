@@ -96,6 +96,12 @@ def close_db(e=None):
 app.teardown_appcontext(close_db)
 
 
+@app.before_request
+def before_request():
+    """매 요청마다 DB 연결 준비"""
+    get_db()
+
+
 # ============================================================
 # Blueprint 등록
 # ============================================================
