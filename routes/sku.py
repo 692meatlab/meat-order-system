@@ -4,6 +4,7 @@ import statistics
 from flask import Blueprint, jsonify, request, g
 from config import Config
 from functools import wraps
+from services.cache import cache
 
 logger = logging.getLogger('order-management')
 
@@ -208,6 +209,8 @@ def update_parts_cost(part_id):
                                 old['price_per_100g'], price_per_100g, anomaly)
 
             conn.commit()
+            cache.invalidate('parts_cost')
+            cache.invalidate_prefix('profitability')
         if not part:
             return jsonify({'error': '해당 부위를 찾을 수 없습니다'}), 404
         result = {'part': part}
@@ -336,6 +339,8 @@ def update_packaging_cost(pkg_id):
                                 old['price'], price, anomaly)
 
             conn.commit()
+            cache.invalidate('packaging_cost')
+            cache.invalidate_prefix('profitability')
         if not pkg:
             return jsonify({'error': '해당 포장재를 찾을 수 없습니다'}), 404
         result = {'packaging': pkg}
@@ -503,6 +508,8 @@ def update_sku_product(product_id):
                 ''', (product_id, comp.get('part_name'), comp.get('weight', 0), comp.get('composition_type', 'weight')))
 
             conn.commit()
+            cache.invalidate('sku_products')
+            cache.invalidate_prefix('profitability')
 
             cur.execute('SELECT * FROM sku_compositions WHERE sku_product_id = %s', (product_id,))
             product['compositions'] = cur.fetchall()

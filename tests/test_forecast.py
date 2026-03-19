@@ -41,14 +41,15 @@ class TestForecastAPI:
         """SKU별 예측 기본"""
         _, mock_cursor = mock_db
 
-        # forecast 내부에서 여러 쿼리 수행
+        # 새 구조: 1) 활성 SKU  2) 배치 DOW 프리로드  3) 일별 주문량
         daily_data = [{'odate': date.today() - timedelta(days=i), 'qty': 5} for i in range(30)]
-        dow_data = [{'dow': i, 'cnt': 10} for i in range(7)]
+        dow_batch = [{'sku_name': '한우등심세트 1kg', 'dow': i, 'cnt': 10} for i in range(7)]
 
         mock_cursor.fetchall.side_effect = [
             [{'sku_name': '한우등심세트 1kg'}],  # 활성 SKU
+            dow_batch,  # 배치 DOW 프리로드 (1 쿼리)
             daily_data,  # 일별 주문량
-        ] + [dow_data] * 7  # dow_factor (7일분 각각 호출)
+        ]
 
         response = client.get('/api/forecast?days=7')
         assert response.status_code == 200
@@ -60,7 +61,8 @@ class TestForecastAPI:
         """주문 데이터 없는 SKU"""
         _, mock_cursor = mock_db
         mock_cursor.fetchall.side_effect = [
-            [{'sku_name': 'empty-sku'}],
+            [{'sku_name': 'empty-sku'}],  # 활성 SKU
+            [],  # 배치 DOW 프리로드 (데이터 없음)
             [],  # 일별 주문량 없음
         ]
 
@@ -73,12 +75,12 @@ class TestForecastAPI:
         """부위별 소요량 예측"""
         _, mock_cursor = mock_db
         daily_data = [{'odate': date.today() - timedelta(days=i), 'qty': 5} for i in range(14)]
-        dow_data = [{'dow': i, 'cnt': 10} for i in range(7)]
+        dow_batch = [{'sku_name': '한우등심세트 1kg', 'dow': i, 'cnt': 10} for i in range(7)]
 
         mock_cursor.fetchall.side_effect = [
             [{'sku_name': '한우등심세트 1kg'}],  # 활성 SKU
+            dow_batch,  # 배치 DOW 프리로드 (1 쿼리)
             daily_data,  # 일별 주문량
-        ] + [dow_data] * 7 + [  # dow_factor (7일분)
             [{'part_name': '등심', 'weight': 500}],  # 구성품
         ]
 

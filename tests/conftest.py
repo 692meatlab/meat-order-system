@@ -30,25 +30,28 @@ def app(mock_db):
         'SECRET_KEY': 'test-secret-key',
         'API_KEY': '',
     }):
-        from app import app as flask_app
-        flask_app.config['TESTING'] = True
+        # 커넥션 풀 초기화 방지
+        with patch('app.init_pool'), \
+             patch('app.pool', None):
+            from app import app as flask_app
+            flask_app.config['TESTING'] = True
 
-        # app.py와 모든 Blueprint의 get_db를 패치
-        with patch('app.get_db', return_value=mock_conn), \
-             patch('routes.users.get_db', return_value=mock_conn), \
-             patch('routes.sku.get_db', return_value=mock_conn), \
-             patch('routes.vendors.get_db', return_value=mock_conn), \
-             patch('routes.orders.get_db', return_value=mock_conn), \
-             patch('routes.dashboard.get_db', return_value=mock_conn), \
-             patch('routes.uploads.get_db', return_value=mock_conn), \
-             patch('routes.inventory.get_db', return_value=mock_conn), \
-             patch('routes.notifications.get_db', return_value=mock_conn), \
-             patch('routes.backup.get_db', return_value=mock_conn), \
-             patch('routes.fuzzy_match.get_db', return_value=mock_conn), \
-             patch('routes.profitability.get_db', return_value=mock_conn), \
-             patch('routes.forecast.get_db', return_value=mock_conn), \
-             patch('routes.smart_order.get_db', return_value=mock_conn):
-            yield flask_app
+            # app.py와 모든 Blueprint의 get_db를 패치
+            with patch('app.get_db', return_value=mock_conn), \
+                 patch('routes.users.get_db', return_value=mock_conn), \
+                 patch('routes.sku.get_db', return_value=mock_conn), \
+                 patch('routes.vendors.get_db', return_value=mock_conn), \
+                 patch('routes.orders.get_db', return_value=mock_conn), \
+                 patch('routes.dashboard.get_db', return_value=mock_conn), \
+                 patch('routes.uploads.get_db', return_value=mock_conn), \
+                 patch('routes.inventory.get_db', return_value=mock_conn), \
+                 patch('routes.notifications.get_db', return_value=mock_conn), \
+                 patch('routes.backup.get_db', return_value=mock_conn), \
+                 patch('routes.fuzzy_match.get_db', return_value=mock_conn), \
+                 patch('routes.profitability.get_db', return_value=mock_conn), \
+                 patch('routes.forecast.get_db', return_value=mock_conn), \
+                 patch('routes.smart_order.get_db', return_value=mock_conn):
+                yield flask_app
 
 
 @pytest.fixture

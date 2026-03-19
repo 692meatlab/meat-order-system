@@ -11,6 +11,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 import json
 from config import Config
 
@@ -73,13 +74,40 @@ def safe_int(value, default=0):
 
 
 # ============================================================
-# Database Connection (psycopg3)
+# Database Connection Pool (psycopg3 + psycopg_pool)
 # ============================================================
+pool = None
+
+def init_pool():
+    """커넥션 풀 초기화"""
+    global pool
+    if pool is not None:
+        return
+    try:
+        pool = ConnectionPool(
+            Config.DATABASE_URL,
+            min_size=Config.DB_POOL_MIN,
+            max_size=Config.DB_POOL_MAX,
+            kwargs={'row_factory': dict_row}
+        )
+        logger.info(f'커넥션 풀 초기화 완료 (min={Config.DB_POOL_MIN}, max={Config.DB_POOL_MAX})')
+    except Exception as e:
+        logger.error(f'커넥션 풀 초기화 실패: {e}')
+        pool = None
+
+# 앱 시작 시 풀 초기화
+if Config.DATABASE_URL:
+    init_pool()
+
+
 def get_db():
-    """DB 연결 가져오기"""
+    """DB 연결 가져오기 (커넥션 풀에서)"""
     if 'db' not in g:
         try:
-            g.db = psycopg.connect(Config.DATABASE_URL, row_factory=dict_row)
+            if pool:
+                g.db = pool.getconn()
+            else:
+                g.db = psycopg.connect(Config.DATABASE_URL, row_factory=dict_row)
         except Exception as e:
             logger.error(f'DB 연결 실패: {e}')
             return None
@@ -87,10 +115,16 @@ def get_db():
 
 
 def close_db(e=None):
-    """DB 연결 닫기"""
+    """DB 연결 반환 (풀로 돌려주기)"""
     db = g.pop('db', None)
     if db is not None:
-        db.close()
+        try:
+            if pool:
+                pool.putconn(db)
+            else:
+                db.close()
+        except Exception:
+            pass
 
 
 app.teardown_appcontext(close_db)
@@ -132,6 +166,43 @@ app.register_blueprint(fuzzy_match_bp)
 app.register_blueprint(profitability_bp)
 app.register_blueprint(forecast_bp)
 app.register_blueprint(smart_order_bp)
+
+
+# ============================================================
+# 스케줄러 초기화
+# ============================================================
+try:
+    from services.scheduler import init_scheduler, get_scheduler_status, trigger_job
+    if not app.config.get('TESTING'):
+        init_scheduler(app)
+except Exception as e:
+    logger.warning(f'스케줄러 초기화 실패 (선택 기능): {e}')
+
+
+# ============================================================
+# 스케줄러 API
+# ============================================================
+@app.route('/api/scheduler/status')
+def scheduler_status():
+    """스케줄러 상태 조회"""
+    try:
+        status = get_scheduler_status()
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/scheduler/trigger/<job_id>', methods=['POST'])
+@require_api_key
+def scheduler_trigger(job_id):
+    """스케줄러 태스크 수동 트리거"""
+    try:
+        success = trigger_job(job_id)
+        if success:
+            return jsonify({'success': True, 'message': f'{job_id} 트리거됨'})
+        return jsonify({'error': f'{job_id} 태스크를 찾을 수 없습니다'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ============================================================

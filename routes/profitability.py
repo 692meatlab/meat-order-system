@@ -67,6 +67,88 @@ def calculate_sku_cost(cur, sku_id):
     }
 
 
+def calculate_all_sku_costs(cur):
+    """전체 SKU 원가를 단일 JOIN 쿼리로 계산 (N+1 제거)
+    기존: SKU N개 × (구성품 쿼리 + 포장재 쿼리 2개) = 3N 쿼리
+    개선: 단일 쿼리 1개 → Python에서 그룹화
+    """
+    cur.execute('''
+        SELECT sp.id, sp.sku_name, sp.selling_price, sp.packaging,
+               sc.part_name, sc.weight,
+               pc.price_per_100g, pc.grade,
+               pkg.price as pkg_price
+        FROM sku_products sp
+        LEFT JOIN sku_compositions sc ON sp.id = sc.sku_product_id
+        LEFT JOIN parts_cost pc ON sc.part_name = pc.part_name
+        LEFT JOIN packaging_cost pkg ON sp.packaging = pkg.packaging_name
+        ORDER BY sp.id
+    ''')
+    rows = cur.fetchall()
+
+    # SKU별 그룹화
+    products = {}
+    for row in rows:
+        pid = row['id']
+        if pid not in products:
+            selling_price = row.get('selling_price') or 0
+            if isinstance(selling_price, Decimal):
+                selling_price = float(selling_price)
+            pkg_price = row.get('pkg_price') or 0
+            if isinstance(pkg_price, Decimal):
+                pkg_price = float(pkg_price)
+            products[pid] = {
+                'id': pid,
+                'sku_name': row['sku_name'],
+                'selling_price': selling_price,
+                'packaging': row['packaging'],
+                'packaging_cost': round(pkg_price),
+                'parts_total': 0,
+                'details': []
+            }
+
+        # 구성품이 있는 경우만 처리
+        if row.get('part_name'):
+            price = row.get('price_per_100g') or 0
+            weight = row.get('weight') or 0
+            if isinstance(price, Decimal):
+                price = float(price)
+            if isinstance(weight, Decimal):
+                weight = float(weight)
+            unit_cost = price * weight / 100
+            products[pid]['parts_total'] += unit_cost
+            products[pid]['details'].append({
+                'part_name': row['part_name'],
+                'weight': weight,
+                'unit_price': price,
+                'grade': row.get('grade'),
+                'cost': round(unit_cost)
+            })
+
+    # 최종 계산
+    results = []
+    for pid, p in products.items():
+        parts_cost = round(p['parts_total'])
+        total_cost = parts_cost + p['packaging_cost']
+        selling_price = p['selling_price']
+        margin = round(selling_price - total_cost)
+        margin_rate = margin / selling_price if selling_price > 0 else 0
+
+        results.append({
+            'sku_id': pid,
+            'sku_name': p['sku_name'],
+            'selling_price': selling_price,
+            'total_cost': total_cost,
+            'parts_cost': parts_cost,
+            'packaging_cost': p['packaging_cost'],
+            'margin': margin,
+            'margin_rate': round(margin_rate, 4),
+            'grade': get_margin_grade(margin_rate),
+            'details': p['details']
+        })
+
+    return results
+
+
 def get_margin_grade(margin_rate):
     """마진율 등급 분류"""
     if margin_rate > 0.4:
@@ -97,36 +179,14 @@ def get_suggestions(cost_data, margin_rate, total_cost):
 # ============================================================
 @profitability_bp.route('/api/profitability')
 def get_profitability():
-    """전체 SKU 수익성 목록"""
+    """전체 SKU 수익성 목록 (단일 JOIN 쿼리 - N+1 제거)"""
     conn = get_db()
     if not conn:
         return jsonify({'error': 'DB 연결에 실패했습니다'}), 503
 
     try:
         with conn.cursor() as cur:
-            cur.execute('SELECT id, sku_name, selling_price, packaging FROM sku_products ORDER BY sku_name')
-            products = cur.fetchall()
-
-            results = []
-            for p in products:
-                selling_price = float(p['selling_price']) if p.get('selling_price') else 0
-                cost_data = calculate_sku_cost(cur, p['id'])
-                total_cost = cost_data['total_cost']
-                margin = round(selling_price - total_cost)
-                margin_rate = margin / selling_price if selling_price > 0 else 0
-                grade = get_margin_grade(margin_rate)
-
-                results.append({
-                    'sku_id': p['id'],
-                    'sku_name': p['sku_name'],
-                    'selling_price': selling_price,
-                    'total_cost': total_cost,
-                    'parts_cost': cost_data['parts_cost'],
-                    'packaging_cost': cost_data['packaging_cost'],
-                    'margin': margin,
-                    'margin_rate': round(margin_rate, 4),
-                    'grade': grade
-                })
+            results = calculate_all_sku_costs(cur)
 
             # 요약 통계
             if results:

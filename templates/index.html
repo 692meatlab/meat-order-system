@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#3498db">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="주문관리">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.svg">
     <title>발주서 변환 및 송장 등록 시스템</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -804,6 +810,66 @@
         .compare-item { padding: 8px; border-radius: 4px; }
         .compare-match { background: #d4edda; }
         .compare-diff { background: #f8d7da; }
+
+        /* === PWA Mobile Enhancement === */
+        @media (max-width: 480px) {
+            .sidebar { width: 260px; }
+            .page-header h1 { font-size: 18px; }
+            .page-header p { font-size: 12px; }
+            .card { padding: 12px; border-radius: 8px; }
+            .card-title { font-size: 15px; }
+            .stats-cards { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .stat-card { padding: 12px; }
+            .stat-value { font-size: 22px; }
+            .stat-label { font-size: 11px; }
+            .form-group label { font-size: 13px; }
+            .form-group input, .form-group select { padding: 10px; font-size: 13px; }
+            .upload-area { padding: 24px; }
+            .upload-icon { font-size: 36px; }
+            .upload-text { font-size: 13px; }
+            .modal-content { width: 100% !important; max-width: none !important; margin: 0; border-radius: 0; max-height: 100vh; height: 100vh; }
+            .modal-header { padding: 16px; }
+            .modal-body { padding: 16px; }
+            .modal-footer { padding: 12px 16px; }
+            .report-cards { grid-template-columns: 1fr; }
+            .calendar-day { min-height: 45px; padding: 4px; }
+            .calendar-day-number { font-size: 12px; }
+            table { font-size: 10px; }
+            th, td { padding: 4px 3px; }
+            .search-bar { flex-direction: column; }
+            .search-bar input { width: 100%; }
+            .filter-chips { gap: 4px; }
+            .filter-chip { padding: 3px 8px; font-size: 11px; }
+        }
+
+        @media (max-width: 1024px) and (min-width: 769px) {
+            .sidebar { width: 200px; }
+            .main-content { margin-left: 200px; }
+            .stats-cards { grid-template-columns: repeat(2, 1fr); }
+            .report-cards { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* 테이블 가로 스크롤 + 첫 컬럼 고정 */
+        .table-container table th:first-child,
+        .table-container table td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            background: white;
+        }
+        .table-container table th:first-child {
+            background: #f8f9fa;
+            z-index: 11;
+        }
+
+        /* 터치 영역 최소 크기 */
+        @media (pointer: coarse) {
+            .btn { min-height: 44px; }
+            .btn-small { min-height: 36px; }
+            .menu-item { min-height: 44px; }
+            .filter-chip { min-height: 32px; }
+            .status-badge { min-height: 28px; display: inline-flex; align-items: center; }
+        }
     </style>
 </head>
 <body>
@@ -1673,6 +1739,20 @@
     <!-- 토스트 -->
     <div class="toast-container" id="toast-container"></div>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.core.js"></script>
+    <script src="/static/js/app.ui.js"></script>
+    <script src="/static/js/app.convert.js"></script>
+    <script src="/static/js/app.orders.js"></script>
+    <script src="/static/js/app.features.js"></script>
+    <script>
+    // Service Worker 등록
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/static/service-worker.js')
+                .then(reg => console.log('SW registered:', reg.scope))
+                .catch(err => console.warn('SW registration failed:', err));
+        });
+    }
+    </script>
 </body>
 </html>

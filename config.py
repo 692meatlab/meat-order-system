@@ -10,6 +10,8 @@ class Config:
     DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+    DB_POOL_MIN = int(os.getenv('DB_POOL_MIN', '2'))
+    DB_POOL_MAX = int(os.getenv('DB_POOL_MAX', '10'))
 
     @staticmethod
     def validate():
